@@ -118,7 +118,7 @@ with st.sidebar:
 
 # --- MAIN FEED ---
 
-if not API_KEY or API_KEY == 'c85bd651b9c24f97918f8c85ddc4a36f':
+if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key in the code to start.")
 else:
     with st.spinner(f"Fetching wire updates for '{user_topic}'..."):
