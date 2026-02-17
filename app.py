@@ -2,15 +2,13 @@ import streamlit as st
 import requests
 from textblob import TextBlob
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
 # You will need a free API key from https://newsapi.org/
-# In a real app, use environment variables. For this script, paste it below.
 API_KEY = 'c85bd651b9c24f97918f8c85ddc4a36f' 
 
 # "Wire Services" are generally considered the most neutral/unbiased
-# because they sell facts to other news agencies.
 NEUTRAL_SOURCES = [
     'reuters', 
     'associated-press', 
@@ -21,20 +19,18 @@ NEUTRAL_SOURCES = [
 
 # --- FUNCTIONS ---
 
-def fetch_news(query, sources, days_ago=1):
-    """Fetches news from the selected sources for a specific topic."""
-    
-    # Calculate date range
-    from_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+def fetch_news(query, sources, from_date, to_date):
+    """Fetches news from the selected sources for a specific topic and date range."""
     
     url = "https://newsapi.org/v2/everything"
     
     params = {
         'q': query if query else 'general',  # Topic
         'sources': ','.join(sources),        # Comma-separated sources
-        'from': from_date,
+        'from': from_date.strftime('%Y-%m-%d'),
+        'to': to_date.strftime('%Y-%m-%d'),
         'language': 'en',
-        'sortBy': 'publishedAt',
+        'sortBy': 'publishedAt', # Asks API for newest first
         'apiKey': API_KEY
     }
     
@@ -43,7 +39,10 @@ def fetch_news(query, sources, days_ago=1):
         data = response.json()
         
         if data['status'] == 'ok':
-            return data['articles']
+            articles = data['articles']
+            # DOUBLE CHECK SORTING: Ensure most recent is first (descending order)
+            articles.sort(key=lambda x: x['publishedAt'], reverse=True)
+            return articles
         else:
             st.error(f"Error fetching news: {data.get('message', 'Unknown error')}")
             return []
@@ -100,6 +99,26 @@ with st.sidebar:
     # Topic Input
     user_topic = st.text_input("Topic / Trend", value="Technology")
     
+    # --- NEW: DATE RANGE SELECTOR ---
+    st.subheader("Timeframe")
+    today = date.today()
+    last_week = today - timedelta(days=7)
+    
+    # Date Input returns a tuple (start, end)
+    date_range = st.date_input(
+        "Select Date Range",
+        value=(last_week, today),
+        min_value=today - timedelta(days=29), # NewsAPI Free tier limit is usually ~1 month
+        max_value=today
+    )
+    
+    # Handle the date range tuple logic
+    if len(date_range) == 2:
+        start_date, end_date = date_range
+    else:
+        # If user is in the middle of picking dates, just use today for both to prevent errors
+        start_date, end_date = today, today
+
     # Source Selection
     st.subheader("Trusted Sources")
     st.info("Defaulted to Wire Services for minimal bias.")
@@ -121,17 +140,19 @@ with st.sidebar:
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key in the code to start.")
 else:
-    with st.spinner(f"Fetching wire updates for '{user_topic}'..."):
-        articles = fetch_news(user_topic, selected_sources)
+    with st.spinner(f"Fetching wire updates for '{user_topic}' from {start_date} to {end_date}..."):
+        
+        # Pass the specific dates to the function
+        articles = fetch_news(user_topic, selected_sources, start_date, end_date)
         
         if not articles:
-            st.info("No recent articles found. Try a broader topic or more sources.")
+            st.info("No articles found in this date range. Try broadening the search.")
         
         for article in articles:
             title = article['title']
             source = article['source']['name']
             url = article['url']
-            published = article['publishedAt'][:10]
+            published = article['publishedAt'][:10] # Extract YYYY-MM-DD
             description = article['description']
             
             # Skip removed content
@@ -163,4 +184,3 @@ else:
                 </p>
             </div>
             """, unsafe_allow_html=True)
-
