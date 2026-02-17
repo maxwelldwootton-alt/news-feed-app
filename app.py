@@ -106,7 +106,7 @@ with st.sidebar:
     selected_sources = st.multiselect(
         "Select Sources:",
         options=['reuters', 'associated-press', 'bloomberg', 'the-verge', 'bbc-news', 'al-jazeera-english'],
-        default=['reuters', 'associated-press']
+        default=['reuters', 'associated-press', 'bloomberg', 'the-verge', 'bbc-news', 'al-jazeera-english']
     )
     
     # Emotional Filtering
