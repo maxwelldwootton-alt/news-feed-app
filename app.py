@@ -91,7 +91,7 @@ def classify_article(text, active_defaults, active_customs):
     found_tags = []
     text_lower = text.lower()
     
-    # 1. Check Default Topics (using expanded keyword dictionary)
+    # 1. Check Default Topics
     for topic in active_defaults:
         keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
         if topic.lower() not in keywords:
@@ -171,12 +171,55 @@ st.markdown("""
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
     
-    /* UPDATED: Overflow Chip Style (+2) with Standard Cursor */
+    /* TOOLTIP CONTAINER (The +N Chip) */
     .chip-overflow { 
         background-color: transparent; 
         color: #9CA3AF; 
         border: 1px dashed #4B5563;
-        cursor: default; /* Just standard arrow */
+        cursor: default;
+        position: relative; /* Anchor for the absolute popup */
+        display: inline-block;
+    }
+
+    /* THE POPUP TEXT (Hidden by default) */
+    .chip-overflow .tooltip-text {
+        visibility: hidden;
+        width: 140px;
+        background-color: #1F2937; /* Dark Gray bg */
+        color: #F3F4F6;
+        text-align: center;
+        border-radius: 6px;
+        padding: 6px 8px;
+        position: absolute;
+        z-index: 10;
+        bottom: 135%; /* Position above */
+        left: 50%;
+        margin-left: -70px; /* Center it */
+        opacity: 0;
+        transition: opacity 0.2s;
+        font-size: 11px;
+        font-weight: 400;
+        border: 1px solid #374151;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        pointer-events: none; /* Let mouse pass through */
+    }
+
+    /* TRIANGLE ARROW for Tooltip */
+    .chip-overflow .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #1F2937 transparent transparent transparent;
+    }
+
+    /* SHOW TOOLTIP ON HOVER */
+    .chip-overflow:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
     }
 
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
@@ -276,7 +319,7 @@ else:
                 priority_list = st.session_state.active_custom + st.session_state.active_default
                 article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
-                # --- TAG LOGIC WITH TOOLTIP ---
+                # --- TAG LOGIC WITH CSS POPUP ---
                 tags_html = ""
                 visible_tags = article_tags[:2]
                 hidden_tags = article_tags[2:]
@@ -286,10 +329,14 @@ else:
                     tags_html += f'<span class="chip chip-category">{tag}</span>'
                 
                 if overflow_count > 0:
-                    # Create the tooltip string (e.g., "Crypto, Politics")
                     tooltip_text = ", ".join(hidden_tags)
-                    # Add title attribute for browser native tooltip
-                    tags_html += f'<span class="chip chip-overflow" title="{tooltip_text}">+{overflow_count}</span>'
+                    # Note: We now inject the tooltip-text span INSIDE the chip-overflow span
+                    tags_html += f'''
+                    <span class="chip chip-overflow">
+                        +{overflow_count}
+                        <span class="tooltip-text">{tooltip_text}</span>
+                    </span>
+                    '''
                 
                 # --- SENTIMENT ---
                 subjectivity, polarity = analyze_sentiment(title + " " + description)
