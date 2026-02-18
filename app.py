@@ -24,8 +24,8 @@ def fetch_news(query, sources, from_date, to_date):
     params = {
         'q': query if query else 'general',
         'sources': ','.join(sources),
-        'from': from_date.strftime('%Y-%m-%d'),
-        'to': to_date.strftime('%Y-%m-%d'),
+        'from': from_date.strftime('%m-%d-%Y'),
+        'to': to_date.strftime('%m-%d-%Y'),
         'language': 'en',
         'sortBy': 'publishedAt',
         'apiKey': API_KEY
