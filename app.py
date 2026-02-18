@@ -49,6 +49,7 @@ def analyze_sentiment(text):
 st.set_page_config(page_title="Pure News Feed", page_icon="📰", layout="centered")
 
 # BASE CSS (Applied always)
+# Note: We enforce 100% width on the button to prevent size jitter
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -59,7 +60,7 @@ st.markdown("""
     .neutral { border-left: 5px solid #2ecc71; padding-left: 10px; }
     .emotional { border-left: 5px solid #e74c3c; padding-left: 10px; }
     
-    /* FORCE SIDEBAR BUTTON WIDTH TO BE STABLE */
+    /* STABLE BUTTON STYLING */
     section[data-testid="stSidebar"] .stButton button {
         width: 100%;
         border-radius: 5px;
@@ -108,7 +109,17 @@ with st.sidebar:
         current_emotional != st.session_state.applied_emotional):
         has_changes = True
 
-    # 3. Dynamic CSS for Button Color ONLY
+    # 3. Render Button (Always in the same spot)
+    if st.button("Refresh Feed"):
+        st.session_state.applied_topic = current_topic
+        st.session_state.applied_start_date = current_start
+        st.session_state.applied_end_date = current_end
+        st.session_state.applied_sources = current_sources
+        st.session_state.applied_emotional = current_emotional
+        st.rerun()
+
+    # 4. Inject Dynamic CSS *AFTER* the button
+    # This prevents the button from being pushed down by the hidden style element
     if has_changes:
         st.markdown("""
             <style>
@@ -119,16 +130,6 @@ with st.sidebar:
             }
             </style>
         """, unsafe_allow_html=True)
-
-    # 4. Button Logic
-    # Note: Label is constant ("Refresh Feed") to prevent size jumping
-    if st.button("Refresh Feed"):
-        st.session_state.applied_topic = current_topic
-        st.session_state.applied_start_date = current_start
-        st.session_state.applied_end_date = current_end
-        st.session_state.applied_sources = current_sources
-        st.session_state.applied_emotional = current_emotional
-        st.rerun()
 
 # --- MAIN FEED ---
 
