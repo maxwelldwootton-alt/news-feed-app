@@ -171,12 +171,12 @@ st.markdown("""
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
     
-    /* UPDATED: Overflow Chip Style (+2) with Help Cursor */
+    /* UPDATED: Overflow Chip Style (+2) with Standard Cursor */
     .chip-overflow { 
         background-color: transparent; 
         color: #9CA3AF; 
         border: 1px dashed #4B5563;
-        cursor: help; /* Changes mouse to question mark/pointer */
+        cursor: default; /* Just standard arrow */
     }
 
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
