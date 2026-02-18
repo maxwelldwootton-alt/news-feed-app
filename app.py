@@ -306,6 +306,7 @@ else:
                 
             for article in articles:
                 title = article['title']
+                url = article['url']
                 
                 # Date Formatting
                 iso_date = article['publishedAt'][:10]
@@ -336,10 +337,11 @@ else:
                     sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
                 
                 # HTML Card
-                # Note: We wrap the headline in a div that stretches so the click target is bigger
+                # FIX: Restored the <a href> tag for the headline. 
+                # The card still has the hover effect defined in CSS.
                 st.markdown(f"""
-                <div class="card-container" onclick="window.open('{article['url']}', '_blank');" style="cursor: pointer;">
-                    <span class="headline">{title}</span>
+                <div class="card-container">
+                    <a href="{url}" target="_blank" class="headline">{title}</a>
                     <div class="metadata">
                         {source_chip}
                         <span style="color: #6B7280; font-weight: bold;">•</span>
