@@ -75,21 +75,35 @@ st.markdown("""
         transition: background-color 0.3s ease;
     }
 
-    /* --- CHANGE THEME TO BLUE --- */
+    /* --- FORCE CHIPS TO BE BLUE --- */
+    /* We use a universal selector (*) to hit the span/div/button whatever Streamlit renders */
     
-    /* 1. Force the Pills (Chips) to be Blue when selected */
-    div[data-testid="stPills"] [data-testid="stPillsOption"][aria-selected="true"] {
-        background-color: #007bff !important; /* Standard Bootstrap Blue */
+    /* SELECTED STATE: Blue Background, Blue Border, Bold Text */
+    [data-testid="stPillsOption"][aria-selected="true"] {
+        background-color: #007bff !important;
         color: white !important;
-        border-color: #007bff !important;
+        border: 2px solid #0056b3 !important; /* Slightly darker blue border */
+        font-weight: bold !important;
     }
     
-    /* 2. Optional: Force the Checkbox to match the Blue theme */
+    /* DESELECTED STATE: Ensure it looks clean */
+    [data-testid="stPillsOption"][aria-selected="false"] {
+        background-color: white !important;
+        color: #333 !important;
+        border: 1px solid #ddd !important;
+    }
+    
+    /* HOVER EFFECT */
+    [data-testid="stPillsOption"]:hover {
+        border-color: #007bff !important;
+        color: #007bff !important;
+    }
+
+    /* Optional: Force Checkbox to Blue too */
     div[data-baseweb="checkbox"] div[aria-checked="true"] {
         background-color: #007bff !important;
         border-color: #007bff !important;
     }
-    
     </style>
 """, unsafe_allow_html=True)
 
@@ -122,7 +136,6 @@ with st.sidebar:
     
     display_names = list(SOURCE_MAPPING.values())
     
-    # Uses st.pills (now Blue via CSS)
     selected_display_names = st.pills(
         "Toggle sources:",
         options=display_names,
@@ -156,7 +169,7 @@ with st.sidebar:
         st.session_state.applied_emotional = current_emotional
         st.rerun()
 
-    # 4. Inject Dynamic CSS *AFTER* the button (Green when changed)
+    # 4. Inject Dynamic CSS *AFTER* the button
     if has_changes:
         st.markdown("""
             <style>
