@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
 # ⚠️ REPLACE THIS WITH YOUR ACTUAL KEY OR USE st.secrets["NEWS_API_KEY"]
-API_KEY = 'YOUR_NEWSAPI_KEY_HERE' 
+API_KEY = '68bf6222804f431d9f3697e73d759099' 
 
 # Map the API 'slugs' to clean Display Names
 SOURCE_MAPPING = {
