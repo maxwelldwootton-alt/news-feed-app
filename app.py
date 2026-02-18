@@ -52,8 +52,11 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    st.session_state.applied_start_date = date.today() - timedelta(days=7)
-    st.session_state.applied_end_date = date.today()
+    # 🕒 CHANGED: Default exactly to yesterday's date
+    yesterday = date.today() - timedelta(days=1)
+    st.session_state.applied_start_date = yesterday
+    st.session_state.applied_end_date = yesterday
+    
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
@@ -92,39 +95,31 @@ def analyze_sentiment(text):
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
 def classify_article(text, active_defaults, active_customs):
-    """Scans text to find which topics match."""
     found_tags = []
     text_lower = text.lower()
     
-    # 1. Check Default Topics
     for topic in active_defaults:
         keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
         if topic.lower() not in keywords:
             keywords.append(topic.lower())
-            
         for k in keywords:
             if k in text_lower:
                 found_tags.append(topic)
                 break 
     
-    # 2. Check Custom Topics
     for topic in active_customs:
         if topic.lower() in text_lower:
             found_tags.append(topic)
             
-    # 3. FALLBACK
     if not found_tags:
         found_tags.append("General")
         
     return list(dict.fromkeys(found_tags))
 
-# --- GEMINI AI CACHED FUNCTION ---
 @st.cache_data(show_spinner=False)
 def get_gemini_summary(prompt_data_string):
-    """Sends the formatted article list to Gemini and caches the response."""
     if not prompt_data_string.strip():
         return "No articles available to summarize."
-        
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview')
         prompt = f"""You are a professional news briefing assistant. 
@@ -161,38 +156,21 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* 1. Global Safe Word-Wrap (Prevents long URLs from pushing the screen wide) */
-    * {
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-    }
-    
-    /* 2. Hide horizontal scrollbar safely on the main container */
-    .block-container {
-        overflow-x: hidden;
-    }
+    * { word-wrap: break-word; overflow-wrap: break-word; }
+    .block-container { overflow-x: hidden; }
 
-    /* Card Styles */
     .card-container {
         background-color: #262730; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; border: 1px solid #363636;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease;
-        
-        /* Box sizing prevents padding from adding to the 100% width */
-        width: 100%;
-        box-sizing: border-box;
-        overflow: hidden; /* Traps anything trying to spill out horizontally */
+        width: 100%; box-sizing: border-box; overflow: hidden; 
     }
     .card-container:hover {
         background-color: #2E2F38; border-color: #3B82F6;     
         box-shadow: 0 8px 15px rgba(0,0,0,0.3); transform: translateY(-3px); 
     }
-    
     .card-content { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-    
-    /* min-width: 0 forces flexbox to allow text truncation/wrapping */
     .text-column { flex: 1; min-width: 0; } 
-    
     .img-column img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; }
     
     @media (max-width: 768px) {
@@ -208,84 +186,44 @@ st.markdown("""
         transition: color 0.2s; letter-spacing: -0.3px; margin-bottom: 8px;
     }
     .card-container:hover .headline { color: #60A5FA; }
-    
     .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
     
-    /* CHIP STYLES */
     .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
     .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
     .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
     
-    /* OVERFLOW CHIP with TOOLTIP */
     .chip-overflow { 
-        background-color: transparent; 
-        color: #9CA3AF; 
-        border: 1px dashed #4B5563;
-        cursor: default;
-        position: relative;
-        display: inline-block;
+        background-color: transparent; color: #9CA3AF; border: 1px dashed #4B5563;
+        cursor: default; position: relative; display: inline-block;
     }
-
-    /* TOOLTIP POPUP TEXT */
     .chip-overflow .tooltip-text {
-        visibility: hidden;
-        width: 140px;
-        background-color: #1F2937;
-        color: #F3F4F6;
-        text-align: center;
-        border-radius: 6px;
-        padding: 6px 8px;
-        position: absolute;
-        z-index: 10;
-        bottom: 135%;
-        /* Adjusted to prevent tooltip from pushing the screen edge on mobile */
-        right: 0; 
-        opacity: 0;
-        transition: opacity 0.2s;
-        font-size: 11px;
-        font-weight: 400;
-        border: 1px solid #374151;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        pointer-events: none;
+        visibility: hidden; width: 140px; background-color: #1F2937; color: #F3F4F6;
+        text-align: center; border-radius: 6px; padding: 6px 8px; position: absolute;
+        z-index: 10; bottom: 135%; right: 0; opacity: 0; transition: opacity 0.2s;
+        font-size: 11px; font-weight: 400; border: 1px solid #374151;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); pointer-events: none;
     }
-
     .chip-overflow .tooltip-text::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        right: 15px; /* Aligns the arrow with the right-aligned box */
-        border-width: 5px;
-        border-style: solid;
-        border-color: #1F2937 transparent transparent transparent;
+        content: ""; position: absolute; top: 100%; right: 15px; border-width: 5px;
+        border-style: solid; border-color: #1F2937 transparent transparent transparent;
     }
-
-    .chip-overflow:hover .tooltip-text, .chip-overflow:active .tooltip-text {
-        visibility: visible;
-        opacity: 1;
-    }
-
+    .chip-overflow:hover .tooltip-text, .chip-overflow:active .tooltip-text { visibility: visible; opacity: 1; }
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- SEARCH & CONTROLS ---
+st.title("📰 The Wire")
+st.caption("No algorithms. No comments. Just headlines.")
 
 col_search, col_edit = st.columns([4, 1])
 with col_search:
-    st.text_input(
-        "Add a custom feed:", 
-        key="search_input",
-        on_change=add_custom_topic,
-        placeholder="e.g. Nvidia, Bitcoin, Election...",
-        label_visibility="collapsed"
-    )
+    st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Bitcoin, Election...", label_visibility="collapsed")
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
 
-# CUSTOM CHIPS
 if st.session_state.saved_custom_topics:
     st.write("**My Feeds**")
     if is_edit_mode:
@@ -294,16 +232,13 @@ if st.session_state.saved_custom_topics:
             remaining = st.session_state.temp_delete_widget
             st.session_state.saved_custom_topics = remaining
             st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
-        
         st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
     else:
         st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
 
-# DEFAULT CHIPS
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# --- QUERY BUILDING ---
 combined_selection = st.session_state.active_default + st.session_state.active_custom
 if combined_selection:
     formatted_topics = [f'"{t}"' if " " in t else t for t in combined_selection]
@@ -315,11 +250,24 @@ else:
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
-    current_date_range = st.date_input("Select Date Range", value=(today - timedelta(days=7), today), min_value=today - timedelta(days=29), max_value=today, format="MM/DD/YYYY")
+    
+    # 🕒 CHANGED: Default UI widget to Yesterday
+    yesterday = today - timedelta(days=1)
+    current_date_range = st.date_input(
+        "Select Date Range", 
+        value=(yesterday, yesterday), 
+        min_value=today - timedelta(days=29), 
+        max_value=today, 
+        format="MM/DD/YYYY"
+    )
+    
+    # Handle the date tuple correctly (Streamlit returns a 1-length tuple if only one day is clicked)
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
+    elif len(current_date_range) == 1:
+        current_start, current_end = current_date_range[0], current_date_range[0]
     else:
-        current_start, current_end = today, today
+        current_start, current_end = yesterday, yesterday
     
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=display_names, selection_mode="multi")
@@ -344,7 +292,6 @@ else:
         with st.spinner("Loading wire..."):
             raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             
-            # 1. PRE-PROCESS ARTICLES (Filter & Tag once)
             processed_articles = []
             priority_list = st.session_state.active_custom + st.session_state.active_default
             
@@ -354,22 +301,18 @@ else:
                 content = article.get('content') or ""
                 text_to_analyze = f"{title} {description} {content}"
                 
-                # Check Sentiment
                 subjectivity, polarity = analyze_sentiment(text_to_analyze)
                 is_emotional = subjectivity > 0.5
                 if current_emotional and is_emotional: 
-                    continue # Skip this article
+                    continue 
                 
-                # Tag and Sort
                 article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
                 article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
-                # Store computed data safely in the dictionary
                 article['computed_tags'] = article_tags
                 article['is_emotional'] = is_emotional
                 processed_articles.append(article)
 
-            # Create the Tabs
             tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
             
             # --- TAB 1: THE FEED ---
@@ -386,7 +329,6 @@ else:
                     image_url = article.get('urlToImage')
                     description = article.get('description') or ""
                     
-                    # HTML Tags
                     tags_html = ""
                     article_tags = article['computed_tags']
                     visible_tags = article_tags[:2]
@@ -400,7 +342,6 @@ else:
                         tooltip_text = ", ".join(hidden_tags)
                         tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
                     
-                    # Formatting
                     iso_date = article.get('publishedAt', '')[:10]
                     published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
                     
@@ -412,7 +353,6 @@ else:
                     sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
                     img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
                     
-                    # Render Feed Card
                     st.markdown(f"""<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>""", unsafe_allow_html=True)
                     
             # --- TAB 2: AI OVERVIEW ---
@@ -422,7 +362,6 @@ else:
                 if not processed_articles:
                     st.info("No articles available to summarize.")
                 else:
-                    # To save tokens, we'll only send the top 30 articles to Gemini
                     prompt_lines = []
                     for a in processed_articles[:30]:
                         cat_string = ", ".join(a['computed_tags'][:2])
@@ -430,7 +369,6 @@ else:
                     
                     prompt_data_string = "\n".join(prompt_lines)
                     
-                    # Add a button to prevent auto-firing to the API unless the user wants it
                     if st.button("Generate Summary", type="primary"):
                         with st.spinner("Gemini is reading the news..."):
                             summary_markdown = get_gemini_summary(prompt_data_string)
