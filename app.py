@@ -24,6 +24,7 @@ def fetch_news(query, sources, from_date, to_date):
     
     url = "https://newsapi.org/v2/everything"
     
+    # NewsAPI expects string dates in YYYY-MM-DD format
     params = {
         'q': query if query else 'general',  # Topic
         'sources': ','.join(sources),        # Comma-separated sources
@@ -99,7 +100,7 @@ with st.sidebar:
     # Topic Input
     user_topic = st.text_input("Topic / Trend", value="Technology")
     
-    # --- NEW: DATE RANGE SELECTOR ---
+    # --- DATE RANGE SELECTOR ---
     st.subheader("Timeframe")
     today = date.today()
     last_week = today - timedelta(days=7)
@@ -128,9 +129,9 @@ with st.sidebar:
         default=['reuters', 'associated-press', 'bloomberg', 'the-verge', 'bbc-news', 'al-jazeera-english']
     )
     
-    # Emotional Filtering
+    # Emotional Filtering (Now Defaults to TRUE)
     st.subheader("Sensationalism Filter")
-    hide_emotional = st.checkbox("Hide emotionally charged headlines?")
+    hide_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
     
     if st.button("Refresh Feed"):
         st.rerun()
@@ -148,6 +149,7 @@ else:
         if not articles:
             st.info("No articles found in this date range. Try broadening the search.")
         
+        count = 0
         for article in articles:
             title = article['title']
             source = article['source']['name']
@@ -167,6 +169,8 @@ else:
             
             if hide_emotional and is_emotional:
                 continue
+            
+            count += 1
                 
             # Render Article
             css_class = "emotional" if is_emotional else "neutral"
@@ -184,3 +188,6 @@ else:
                 </p>
             </div>
             """, unsafe_allow_html=True)
+        
+        if count == 0 and articles:
+            st.warning("Articles were found, but all of them were filtered out as 'Emotional'. Try unchecking the filter to see them.")
