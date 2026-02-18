@@ -53,7 +53,6 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    # 🕒 Default exactly to yesterday's date
     yesterday = date.today() - timedelta(days=1)
     st.session_state.applied_start_date = yesterday
     st.session_state.applied_end_date = yesterday
@@ -111,7 +110,6 @@ def classify_article(text, active_defaults, active_customs):
         if topic.lower() in text_lower:
             found_tags.append(topic)
             
-    # Dropped the "General" fallback here so strict filtering works
     return list(dict.fromkeys(found_tags))
 
 @st.cache_data(show_spinner=False)
@@ -120,14 +118,14 @@ def get_gemini_summary(prompt_data_string):
         return "No articles available to summarize."
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview')
-        prompt = f"""You are a professional news briefing assistant. 
+        prompt = f'''You are a professional news briefing assistant. 
 I am providing you with a list of current news articles. Each article includes its assigned Categories, Title, and Description.
 Please provide a well-structured, easy-to-read summary of the news, grouping the insights by Category. 
 Keep it engaging, objective, and concise. Use markdown formatting (headers, bullet points) for readability.
 
 Here is the news data:
 {prompt_data_string}
-"""
+'''
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -138,17 +136,18 @@ def add_custom_topic():
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
+        # Explicit list reassignment forces Streamlit to update the widget UI perfectly
         if new_topic not in st.session_state.saved_custom_topics:
-            st.session_state.saved_custom_topics.insert(0, new_topic)
+            st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
         if new_topic not in st.session_state.active_custom:
-            st.session_state.active_custom.append(new_topic)
+            st.session_state.active_custom = st.session_state.active_custom + [new_topic]
     st.session_state.search_input = ""
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
 # --- CSS STYLING ---
-st.markdown("""
+st.markdown('''
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
     #MainMenu {visibility: hidden;}
@@ -211,7 +210,7 @@ st.markdown("""
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
@@ -237,24 +236,21 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# --- MASTER QUERY BUILDER ---
-# Fetch all available topics (active and inactive) so the API call is consistent and hits the cache.
-all_topics = DEFAULT_TOPICS + st.session_state.saved_custom_topics
+# --- STRICT ACTIVE QUERY BUILDER ---
+# We ONLY query the API for chips that are currently checked. 
+active_topics = st.session_state.active_default + st.session_state.active_custom
 query_parts = []
-for t in all_topics:
+for t in active_topics:
     part = f'"{t}"' if " " in t else t
-    # Keep query length safe for NewsAPI limits
     if len(" OR ".join(query_parts + [part])) < 450: 
         query_parts.append(part)
 
-master_api_query = " OR ".join(query_parts) if query_parts else "General"
-active_topics = st.session_state.active_default + st.session_state.active_custom
+api_query = " OR ".join(query_parts) if query_parts else "General"
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
-    
     yesterday = today - timedelta(days=1)
     current_date_range = st.date_input(
         "Select Date Range", 
@@ -282,105 +278,4 @@ with st.sidebar:
          st.session_state.applied_emotional = current_emotional
          st.rerun()
 
-st.divider()
-
-# --- MAIN APP BODY (TABS & PRE-PROCESSING) ---
-if not NEWS_API_KEY:
-    st.warning("⚠️ Please enter a valid NewsAPI key.")
-else:
-    if not st.session_state.applied_sources:
-        st.warning("⚠️ Please select at least one source in the sidebar.")
-    else:
-        with st.spinner("Loading wire..."):
-            
-            # Fetch using the stable Master Query (caches effectively)
-            raw_articles = fetch_news(master_api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
-            
-            processed_articles = []
-            priority_list = st.session_state.active_custom + st.session_state.active_default
-            
-            for article in raw_articles:
-                title = article.get('title') or ""
-                description = article.get('description') or ""
-                content = article.get('content') or ""
-                text_to_analyze = f"{title} {description} {content}"
-                
-                # Check for tags against currently active chips
-                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
-                
-                # 🛑 LOCAL STRICT FILTER: If you have active chips, but this article matches none of them, skip it!
-                if active_topics and not article_tags:
-                    continue
-                
-                subjectivity, polarity = analyze_sentiment(text_to_analyze)
-                is_emotional = subjectivity > 0.5
-                if current_emotional and is_emotional: 
-                    continue 
-                
-                # Sort tags
-                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
-                
-                article['computed_tags'] = article_tags
-                article['is_emotional'] = is_emotional
-                processed_articles.append(article)
-
-            tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
-            
-            # --- TAB 1: THE FEED ---
-            with tab_feed:
-                if not processed_articles:
-                    if raw_articles:
-                        st.warning("Articles were found, but all were hidden by the 'Sensationalism Filter' or didn't match your active topic chips.")
-                    else:
-                        st.info("No articles found matching these topics.")
-                    
-                for article in processed_articles:
-                    title = article.get('title') or ""
-                    url = article.get('url') or "#"
-                    image_url = article.get('urlToImage')
-                    description = article.get('description') or ""
-                    
-                    tags_html = ""
-                    article_tags = article['computed_tags']
-                    visible_tags = article_tags[:2]
-                    hidden_tags = article_tags[2:]
-                    overflow_count = len(hidden_tags)
-                    
-                    for tag in visible_tags:
-                        tags_html += f'<span class="chip chip-category">{tag}</span>'
-                    
-                    if overflow_count > 0:
-                        tooltip_text = ", ".join(hidden_tags)
-                        tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
-                    
-                    iso_date = article.get('publishedAt', '')[:10]
-                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
-                    
-                    api_source_name = article.get('source', {}).get('name', 'Unknown')
-                    api_source_id = article.get('source', {}).get('id', '') 
-                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
-                    
-                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
-                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
-                    
-                    st.markdown(f"""<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>""", unsafe_allow_html=True)
-                    
-            # --- TAB 2: AI OVERVIEW ---
-            with tab_ai:
-                st.header("✨ AI Overview")
-                
-                if not processed_articles:
-                    st.info("No articles available to summarize.")
-                else:
-                    prompt_lines = []
-                    for a in processed_articles[:30]:
-                        cat_string = ", ".join(a['computed_tags'][:2])
-                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {a.get('title')} | Desc: {a.get('description')}")
-                    
-                    prompt_data_string = "\n".join(prompt_lines)
-                    
-                    if st.button("Generate Summary", type="primary"):
-                        with st.spinner("Gemini is reading the news..."):
-                            summary_markdown = get_gemini_summary(prompt_data_string)
-                            st.markdown(summary_markdown)
+st.divider
