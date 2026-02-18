@@ -291,7 +291,7 @@ with st.sidebar:
 
 st.divider()
 
-# --- MAIN FEED ---
+# --- MAIN APP BODY (TABS) ---
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
@@ -299,63 +299,73 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
+            # The fetch happens BEFORE the tabs so both tabs can use the same data
             articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, API_KEY)
             
-            count = 0
-            if not articles:
-                st.info("No articles found matching these topics.")
-                
-            for article in articles:
-                # --- EXTRACT TEXT ---
-                title = article.get('title') or ""
-                url = article.get('url') or "#"
-                image_url = article.get('urlToImage')
-                description = article.get('description') or ""
-                content = article.get('content') or ""
-                
-                # Combine title, description, and content to pass to our tagger and sentiment engine
-                text_to_analyze = f"{title} {description} {content}"
-                
-                # --- AUTO-TAGGING & SORTING ---
-                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
-                priority_list = st.session_state.active_custom + st.session_state.active_default
-                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
-                
-                tags_html = ""
-                visible_tags = article_tags[:2]
-                hidden_tags = article_tags[2:]
-                overflow_count = len(hidden_tags)
-                
-                for tag in visible_tags:
-                    tags_html += f'<span class="chip chip-category">{tag}</span>'
-                
-                if overflow_count > 0:
-                    tooltip_text = ", ".join(hidden_tags)
-                    tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
-                
-                # --- SENTIMENT ---
-                subjectivity, polarity = analyze_sentiment(text_to_analyze)
-                is_emotional = subjectivity > 0.5
-                if current_emotional and is_emotional: continue
-                count += 1
-                
-                # --- RENDER ---
-                iso_date = article.get('publishedAt', '')[:10]
-                if iso_date:
-                    date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
-                    published_formatted = date_obj.strftime('%b %d')
-                else:
-                    published_formatted = "Unknown Date"
-                
-                api_source_name = article.get('source', {}).get('name', 'Unknown')
-                api_source_id = article.get('source', {}).get('id', '') 
-                display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
-                
-                source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if is_emotional else '<span class="chip chip-neutral">✅ Objective</span>'
-                img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
-                
-                st.markdown(f"""<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>""", unsafe_allow_html=True)
-                
-            if count == 0 and articles:
-                st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
+            # Create the Tabs
+            tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
+            
+            # --- TAB 1: THE FEED ---
+            with tab_feed:
+                count = 0
+                if not articles:
+                    st.info("No articles found matching these topics.")
+                    
+                for article in articles:
+                    title = article.get('title') or ""
+                    url = article.get('url') or "#"
+                    image_url = article.get('urlToImage')
+                    description = article.get('description') or ""
+                    content = article.get('content') or ""
+                    
+                    text_to_analyze = f"{title} {description} {content}"
+                    
+                    # --- AUTO-TAGGING & SORTING ---
+                    article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                    priority_list = st.session_state.active_custom + st.session_state.active_default
+                    article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                    
+                    tags_html = ""
+                    visible_tags = article_tags[:2]
+                    hidden_tags = article_tags[2:]
+                    overflow_count = len(hidden_tags)
+                    
+                    for tag in visible_tags:
+                        tags_html += f'<span class="chip chip-category">{tag}</span>'
+                    
+                    if overflow_count > 0:
+                        tooltip_text = ", ".join(hidden_tags)
+                        tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
+                    
+                    # --- SENTIMENT ---
+                    subjectivity, polarity = analyze_sentiment(text_to_analyze)
+                    is_emotional = subjectivity > 0.5
+                    if current_emotional and is_emotional: continue
+                    count += 1
+                    
+                    # --- RENDER ---
+                    iso_date = article.get('publishedAt', '')[:10]
+                    if iso_date:
+                        date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
+                        published_formatted = date_obj.strftime('%b %d')
+                    else:
+                        published_formatted = "Unknown Date"
+                    
+                    api_source_name = article.get('source', {}).get('name', 'Unknown')
+                    api_source_id = article.get('source', {}).get('id', '') 
+                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+                    
+                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
+                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if is_emotional else '<span class="chip chip-neutral">✅ Objective</span>'
+                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
+                    
+                    st.markdown(f"""<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>""", unsafe_allow_html=True)
+                    
+                if count == 0 and articles:
+                    st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
+                    
+            # --- TAB 2: AI OVERVIEW ---
+            with tab_ai:
+                st.header("✨ AI Overview")
+                st.write("A Gemini-powered summary of the top articles grouped by category will appear here.")
+                st.info("Coming soon: Summarization logic using the Google Gemini API.")
