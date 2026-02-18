@@ -141,7 +141,7 @@ with st.sidebar:
             }
             </style>
         """, unsafe_allow_html=True)
-        button_label = "Refresh Feed (Changes Detected)"
+        button_label = "Refresh Feed"
     else:
         button_label = "Refresh Feed"
 
