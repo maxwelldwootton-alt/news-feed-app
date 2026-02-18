@@ -5,8 +5,9 @@ from datetime import datetime, timedelta, date
 import google.generativeai as genai
 
 # --- CONFIGURATION ---
-NEWS_API_KEY = '68bf6222804f431d9f3697e73d759099' 
-GEMINI_API_KEY = 'AIzaSyDcD9VTxZ7-LwBjlySUN02UbX9UxnQy4rY'
+# 🔒 Pulling keys securely from Streamlit Secrets
+NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
