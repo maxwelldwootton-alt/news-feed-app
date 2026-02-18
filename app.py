@@ -133,24 +133,26 @@ st.caption("No algorithms. No comments. Just headlines.")
 
 def add_custom_topic():
     """Adds a new topic from the search bar."""
-    new_query = st.session_state.search_input.strip()
-    if new_query:
-        # Add to Custom List if unique
-        if new_query not in st.session_state.custom_topics:
-            st.session_state.custom_topics.append(new_query)
-        # Add to Selection (Make it active)
-        if new_query not in st.session_state.selected_topics:
-            st.session_state.selected_topics.append(new_query)
+    raw_query = st.session_state.search_input.strip()
+    if raw_query:
+        # Title case to look nice (e.g. "bitcoin" -> "Bitcoin")
+        new_topic = raw_query.title()
+        
+        # 1. Add to Custom List (Insert at TOP so it's first)
+        if new_topic not in st.session_state.custom_topics:
+            st.session_state.custom_topics.insert(0, new_topic)
+            
+        # 2. Add to Selection (CRITICAL: Explicitly re-assign list to force update)
+        if new_topic not in st.session_state.selected_topics:
+            st.session_state.selected_topics = st.session_state.selected_topics + [new_topic]
+            
     # Clear input
     st.session_state.search_input = ""
 
 def clean_custom_topics():
     """Removes custom topics if they are deselected."""
-    # We look at what is currently selected
     current_selection = st.session_state.selected_topics
-    
-    # We look at our custom list. If a custom topic is NOT in the current selection, delete it.
-    # We use a copy of the list [:] to avoid errors while modifying it
+    # Check if any custom topic was unchecked
     for topic in st.session_state.custom_topics[:]:
         if topic not in current_selection:
             st.session_state.custom_topics.remove(topic)
@@ -159,28 +161,27 @@ def clean_custom_topics():
 st.text_input(
     "Search to add a topic:", 
     key="search_input",
-    on_change=add_custom_topic, # Runs ONLY when you hit enter on search
+    on_change=add_custom_topic, # Runs when you hit Enter
     placeholder="e.g. Nvidia, Bitcoin, Election..."
 )
 
 # --- CHIP DISPLAY ---
-# Combine Default + Custom (Custom first so they pop up at the front)
+# Combine Custom + Default (Custom first)
 all_options = st.session_state.custom_topics + DEFAULT_TOPICS
-
-# Remove duplicates just in case
+# Deduplicate while preserving order
 all_options = list(dict.fromkeys(all_options))
 
 st.pills(
     "Active Feeds (Deselect to remove):",
     options=all_options,
     key="selected_topics", 
-    on_change=clean_custom_topics, # Runs ONLY when you click a chip
+    on_change=clean_custom_topics, # Runs when you click a chip
     selection_mode="multi"
 )
 
 # --- QUERY BUILDING ---
 if st.session_state.selected_topics:
-    # Wrap multi-word topics in quotes
+    # Wrap multi-word topics in quotes for exact matching
     formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.selected_topics]
     api_query = " OR ".join(formatted_topics)
 else:
