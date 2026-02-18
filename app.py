@@ -161,11 +161,14 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* FIX HORIZONTAL SCROLLING ON MOBILE */
-    * { box-sizing: border-box; }
-    html, body, [data-testid="stAppViewContainer"], .main .block-container {
-        overflow-x: hidden;
-        max-width: 100vw;
+    /* 🛑 THE ULTIMATE MOBILE HORIZONTAL SCROLL FIX 🛑 */
+    html, body, .stApp, [data-testid="stAppViewContainer"], .main .block-container {
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+    }
+    
+    * { 
+        box-sizing: border-box !important; 
     }
     
     /* Card Styles */
@@ -173,15 +176,18 @@ st.markdown("""
         background-color: #262730; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; border: 1px solid #363636;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease;
-        width: 100%;
+        max-width: 100%; /* Prevents card from pushing past the screen */
     }
     .card-container:hover {
         background-color: #2E2F38; border-color: #3B82F6;     
         box-shadow: 0 8px 15px rgba(0,0,0,0.3); transform: translateY(-3px); 
     }
     .card-content { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-    .text-column { flex: 1; min-width: 0; }
-    .img-column img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; }
+    
+    /* min-width: 0 is crucial for flexbox so text truncates instead of pushing the box wider */
+    .text-column { flex: 1; min-width: 0; word-wrap: break-word; } 
+    
+    .img-column img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; max-width: 100%; }
     
     @media (max-width: 768px) {
         .card-content { flex-direction: column-reverse; align-items: stretch; }
@@ -194,6 +200,7 @@ st.markdown("""
         display: block; font-family: 'Merriweather', serif; font-size: 24px; 
         font-weight: 700; color: #E0E0E0; text-decoration: none; line-height: 1.4;
         transition: color 0.2s; letter-spacing: -0.3px; margin-bottom: 8px;
+        word-wrap: break-word; /* Forces long unbroken text to wrap */
     }
     .card-container:hover .headline { color: #60A5FA; }
     
@@ -219,7 +226,8 @@ st.markdown("""
     /* TOOLTIP POPUP TEXT */
     .chip-overflow .tooltip-text {
         visibility: hidden;
-        width: 140px;
+        width: max-content;
+        max-width: 200px; /* Don't let the tooltip get too wide on mobile */
         background-color: #1F2937;
         color: #F3F4F6;
         text-align: center;
@@ -229,7 +237,7 @@ st.markdown("""
         z-index: 10;
         bottom: 135%;
         left: 50%;
-        margin-left: -70px;
+        transform: translateX(-50%); /* Better centering method that avoids edge overflow */
         opacity: 0;
         transition: opacity 0.2s;
         font-size: 11px;
@@ -237,10 +245,7 @@ st.markdown("""
         border: 1px solid #374151;
         box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         pointer-events: none;
-        
-        /* Ensure tooltip doesn't cause overflow on mobile edges */
-        max-width: 90vw;
-        word-wrap: break-word;
+        white-space: normal;
     }
 
     .chip-overflow .tooltip-text::after {
@@ -259,7 +264,7 @@ st.markdown("""
         opacity: 1;
     }
 
-    .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
+    .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; word-wrap: break-word; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
 """, unsafe_allow_html=True)
