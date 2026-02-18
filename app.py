@@ -85,7 +85,7 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* --- Card Container & Hover Effects --- */
+    /* --- Card Container --- */
     .card-container {
         background-color: #262730; 
         padding: 24px; 
@@ -103,26 +103,52 @@ st.markdown("""
         transform: translateY(-3px); 
     }
 
-    /* --- FLEX LAYOUT FOR IMAGE & TEXT --- */
+    /* --- FLEX LAYOUT (DESKTOP DEFAULT) --- */
     .card-content {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: center; /* Vertically center image on desktop */
         gap: 20px;
     }
 
     .text-column {
-        flex: 1; /* Takes up all remaining space */
-        min-width: 0; /* Prevents text from overflowing */
+        flex: 1; 
+        min-width: 0; 
     }
 
+    /* DESKTOP IMAGE STYLE */
     .img-column img {
         width: 120px;
         height: 120px;
         object-fit: cover;
         border-radius: 8px;
         border: 1px solid #444;
-        flex-shrink: 0; /* Prevents image from squishing */
+        flex-shrink: 0;
+        display: block; 
+    }
+
+    /* --- RESPONSIVE MOBILE LAYOUT --- */
+    /* Triggers when screen is smaller than 768px (Tablets/Phones) */
+    @media (max-width: 768px) {
+        .card-content {
+            flex-direction: column-reverse; /* Stacks image ON TOP of text */
+            align-items: stretch;
+        }
+        
+        .img-column {
+            width: 100%;
+            margin-bottom: 16px; /* Space between image and headline */
+        }
+        
+        .img-column img {
+            width: 100%;       /* Full width banner */
+            height: 180px;     /* Taller cinematic height */
+            border-radius: 8px;
+        }
+        
+        .headline {
+            font-size: 20px; /* Slightly smaller text for mobile density */
+        }
     }
     
     /* Headline Styling */
@@ -369,7 +395,7 @@ else:
                 else:
                     sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
                 
-                # Build Image HTML (FIXED: Single line to avoid Markdown indendation errors)
+                # Build Image HTML
                 img_html = ""
                 if image_url:
                     img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>'
