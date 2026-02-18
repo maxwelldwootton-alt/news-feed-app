@@ -27,15 +27,13 @@ NEUTRAL_SOURCES = [
 ]
 
 # --- INITIALIZE SESSION STATE ---
+# This controls the "Applied" state (what the feed is actually showing)
 if 'applied_topic' not in st.session_state:
     st.session_state.applied_topic = "Technology"
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
     st.session_state.applied_end_date = date.today()
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
-
-if 'topic_input' not in st.session_state:
-    st.session_state.topic_input = "Technology"
 
 # --- FUNCTIONS ---
 def fetch_news(query, sources, from_date, to_date):
@@ -54,7 +52,6 @@ def fetch_news(query, sources, from_date, to_date):
         data = response.json()
         if data['status'] == 'ok':
             articles = data['articles']
-            # Sort by date descending
             articles.sort(key=lambda x: x['publishedAt'], reverse=True)
             return articles
         return []
@@ -71,39 +68,36 @@ st.set_page_config(page_title="Pure News Feed", page_icon="📰", layout="center
 # --- CSS STYLING (Dark Mode + Blue Theme) ---
 st.markdown("""
     <style>
-    /* Clean up the default UI */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Card Styles adapted for Dark Mode */
+    /* Card Styles */
     .headline { 
         font-family: 'Georgia', serif; 
         font-size: 22px; 
         font-weight: bold; 
-        color: #E0E0E0; /* Light text for dark mode */
+        color: #E0E0E0; 
         text-decoration: none; 
         transition: color 0.2s;
     }
     .headline:hover {
-        color: #3B82F6; /* Modern Blue hover */
+        color: #3B82F6; 
     }
     .metadata { 
         font-family: 'Arial', sans-serif; 
         font-size: 12px; 
-        color: #A0A0A0; /* Dimmed grey for metadata */
+        color: #A0A0A0; 
     }
     .card-container {
-        background-color: #262730; /* Streamlit Dark Grey */
+        background-color: #262730; 
         padding: 15px; 
         border-radius: 8px; 
         margin-bottom: 20px; 
         border: 1px solid #363636;
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
-    .neutral { border-left: 5px solid #2ecc71; }
-    .emotional { border-left: 5px solid #ef4444; }
     
-    /* Standardize Button Transition */
+    /* Button Transition */
     section[data-testid="stSidebar"] .stButton button {
         width: 100%;
         border-radius: 5px;
@@ -120,36 +114,46 @@ st.caption("No algorithms. No comments. Just headlines.")
 with st.sidebar:
     st.header("Filters")
     
-    # --- 1. TOPIC SELECTION (Synced Pills + Input) ---
+    # --- 1. TOPIC SELECTION ---
     SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Space Exploration"]
 
-    # Callback: Pill clicked -> Update Input
-    def update_input_from_pills():
-        # Only update if a pill is actually selected (not deselected)
-        if st.session_state.topic_pills:
-            st.session_state.topic_input = st.session_state.topic_pills
+    # Initialize Defaults: Technology selected, Search box empty
+    if "topic_pills" not in st.session_state:
+        st.session_state.topic_pills = "Technology"
+    if "custom_search" not in st.session_state:
+        st.session_state.custom_search = ""
 
-    # Callback: Text typed -> Clear Pills (visual cleanup)
-    def clear_pills():
-        st.session_state.topic_pills = None
+    # Callback: If Pill clicked -> Clear Text Input
+    def on_pill_change():
+        if st.session_state.topic_pills:
+            st.session_state.custom_search = ""
+            
+    # Callback: If Text typed -> Deselect Pill
+    def on_text_change():
+        if st.session_state.custom_search:
+            st.session_state.topic_pills = None
 
     st.pills(
         "Trending now:",
         options=SUGGESTED_TOPICS,
         key="topic_pills",
-        on_change=update_input_from_pills,
+        on_change=on_pill_change,
         selection_mode="single"
     )
 
-    current_topic = st.text_input(
+    st.text_input(
         "Or search custom topic:", 
-        value=st.session_state.topic_input,
-        key="topic_input_widget", # Unique key for the widget
-        on_change=lambda: st.session_state.update(topic_input=st.session_state.topic_input_widget) or clear_pills()
+        key="custom_search",
+        on_change=on_text_change
     )
-    # Ensure current_topic variable reflects the session state
-    if current_topic != st.session_state.topic_input:
-         current_topic = st.session_state.topic_input
+    
+    # Logic: Decide which topic to use for the API
+    if st.session_state.custom_search:
+        current_topic = st.session_state.custom_search
+    elif st.session_state.topic_pills:
+        current_topic = st.session_state.topic_pills
+    else:
+        current_topic = "Technology" # Fallback if user clears everything
     
     st.divider()
 
@@ -211,7 +215,7 @@ with st.sidebar:
         st.markdown("""
             <style>
             section[data-testid="stSidebar"] .stButton button {
-                background-color: #3B82F6 !important; /* Modern Blue */
+                background-color: #3B82F6 !important;
                 color: white !important;
                 border: 1px solid #2563EB !important;
             }
@@ -255,7 +259,6 @@ else:
                 description = article['description']
                 subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
                 
-                # Logic: > 0.5 subjectivity is considered "emotional/opinion"
                 is_emotional = subjectivity > 0.5
                 
                 if st.session_state.applied_emotional and is_emotional:
