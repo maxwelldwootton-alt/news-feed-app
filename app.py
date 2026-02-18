@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import re
 from textblob import TextBlob
 from datetime import datetime, timedelta, date
 import google.generativeai as genai
@@ -31,15 +32,16 @@ DEFAULT_TOPICS = [
 ]
 
 # --- KEYWORD MATCHING ENGINE ---
+# 🧹 CLEANED: Removed hyper-generic words like "launch", "plant", "energy", "list", and "judge" 
 TOPIC_KEYWORDS = {
     "Technology": ["tech", "software", "hardware", "apple", "google", "microsoft", "internet", "device", "silicon", "meta", "amazon", "server", "cyber", "data", "app", "mobile", "ios", "android"],
     "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural", "nvidia", "altman", "chatbot", "generative"],
-    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "rate", "fed", "trading", "investor", "bull", "bear", "wall st", "ipo", "shares", "revenue", "profit", "quarterly"],
+    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "fed", "trading", "investor", "wall st", "ipo", "shares", "revenue", "profit", "quarterly"],
     "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "blockchain", "token", "coinbase", "binance", "wallet", "web3", "defi"],
     "Politics": ["politics", "biden", "trump", "congress", "senate", "law", "election", "campaign", "white house", "democrat", "republican", "gop", "bill", "vote", "voter"],
-    "Epstein Files": ["epstein", "ghislaine", "maxwell", "document", "court", "list", "judge", "testimony", "deposition"],
-    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor", "plant", "energy", "radiation"],
-    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket", "launch", "satellite", "astronaut", "universe"]
+    "Epstein Files": ["epstein", "ghislaine", "maxwell", "testimony", "deposition"],
+    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor", "radiation"],
+    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket", "satellite", "astronaut", "universe"]
 }
 
 # --- INITIALIZE SESSION STATE ---
@@ -63,10 +65,8 @@ if 'applied_start_date' not in st.session_state:
 @st.cache_data(ttl=3600, show_spinner=False) 
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
-    
     if sources:
         sources.sort()
-        
     params = {
         'q': query if query else 'general',
         'sources': ','.join(sources),
@@ -102,12 +102,14 @@ def classify_article(text, active_defaults, active_customs):
         if topic.lower() not in keywords:
             keywords.append(topic.lower())
         for k in keywords:
-            if k in text_lower:
+            # 🛑 REGEX STRICT WORD BOUNDARY: \b forces it to match whole words only. 
+            # "ai" will no longer match the letters a-i inside the word "said".
+            if re.search(rf'\b{re.escape(k)}\b', text_lower):
                 found_tags.append(topic)
                 break 
     
     for topic in active_customs:
-        if topic.lower() in text_lower:
+        if re.search(rf'\b{re.escape(topic.lower())}\b', text_lower):
             found_tags.append(topic)
             
     return list(dict.fromkeys(found_tags))
@@ -207,191 +209,4 @@ st.markdown('''
     }
     .chip-overflow:hover .tooltip-text, .chip-overflow:active .tooltip-text { visibility: visible; opacity: 1; }
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
-    .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
-    </style>
-''', unsafe_allow_html=True)
-
-st.title("📰 The Wire")
-st.caption("No algorithms. No comments. Just headlines.")
-
-col_search, col_edit = st.columns([4, 1])
-with col_search:
-    st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Bitcoin, Election...", label_visibility="collapsed")
-with col_edit:
-    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
-
-if st.session_state.saved_custom_topics:
-    st.write("**My Feeds**")
-    if is_edit_mode:
-        st.warning("🗑️ **Delete Mode Active:** Uncheck to delete.")
-        def on_delete_change():
-            remaining = st.session_state.temp_delete_widget
-            st.session_state.saved_custom_topics = remaining
-            st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
-        st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
-    else:
-        st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
-
-st.write("**Trending Topics**")
-st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
-
-
-# --- STRICT ACTIVE QUERY BUILDER ---
-# We build the API query using the rich synonyms from TOPIC_KEYWORDS 
-# so the API fetches exactly what the local chips are looking for!
-active_topics = st.session_state.active_default + st.session_state.active_custom
-query_parts = []
-
-for topic in active_topics:
-    # Get the keyword list if it's a default topic, otherwise just use the custom topic name
-    keywords = TOPIC_KEYWORDS.get(topic, [topic])
-    
-    # Ensure the actual topic name is included in the search
-    if topic.lower() not in [k.lower() for k in keywords]:
-        keywords = [topic] + keywords
-        
-    for k in keywords:
-        part = f'"{k}"' if " " in k else k
-        
-        # Prevent duplicates and keep the total query length under NewsAPI's 450 char limit
-        if part not in query_parts:
-            if len(" OR ".join(query_parts + [part])) < 450: 
-                query_parts.append(part)
-
-api_query = " OR ".join(query_parts) if query_parts else "General"
-
-# --- SIDEBAR ---
-with st.sidebar:
-    st.header("Advanced Filters")
-    today = date.today()
-    yesterday = today - timedelta(days=1)
-    current_date_range = st.date_input(
-        "Select Date Range", 
-        value=(yesterday, yesterday), 
-        min_value=today - timedelta(days=29), 
-        max_value=today, 
-        format="MM/DD/YYYY"
-    )
-    
-    if len(current_date_range) == 2:
-        current_start, current_end = current_date_range
-    elif len(current_date_range) == 1:
-        current_start, current_end = current_date_range[0], current_date_range[0]
-    else:
-        current_start, current_end = yesterday, yesterday
-    
-    display_names = list(SOURCE_MAPPING.values())
-    selected_display_names = st.pills("Toggle sources:", options=display_names, default=display_names, selection_mode="multi")
-    current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
-    current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
-    if st.button("Update Timeframe/Sources", type="primary"):
-         st.session_state.applied_start_date = current_start
-         st.session_state.applied_end_date = current_end
-         st.session_state.applied_sources = current_sources
-         st.session_state.applied_emotional = current_emotional
-         st.rerun()
-
-st.divider()
-
-# --- MAIN APP BODY ---
-if not NEWS_API_KEY:
-    st.warning("⚠️ Please enter a valid NewsAPI key.")
-elif not active_topics:
-    st.info("👈 Please select at least one feed category above to view articles.")
-else:
-    if not st.session_state.applied_sources:
-        st.warning("⚠️ Please select at least one source in the sidebar.")
-    else:
-        with st.spinner("Loading wire..."):
-            
-            raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
-            
-            processed_articles = []
-            priority_list = st.session_state.active_custom + st.session_state.active_default
-            
-            for article in raw_articles:
-                title = article.get('title') or ""
-                description = article.get('description') or ""
-                content = article.get('content') or ""
-                text_to_analyze = f"{title} {description} {content}"
-                
-                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
-                
-                # Trust the API fallback (safer now that query synonyms match local keywords)
-                if not article_tags and active_topics:
-                    article_tags = [active_topics[0]]
-                
-                if not article_tags:
-                    continue
-                
-                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
-                
-                subjectivity, polarity = analyze_sentiment(text_to_analyze)
-                is_emotional = subjectivity > 0.5
-                if current_emotional and is_emotional: 
-                    continue 
-                
-                article['computed_tags'] = article_tags
-                article['is_emotional'] = is_emotional
-                processed_articles.append(article)
-
-            tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
-            
-            # --- TAB 1: THE FEED ---
-            with tab_feed:
-                if not processed_articles:
-                    if raw_articles:
-                        st.info("Articles were found, but all were filtered out by your Sensationalism setting.")
-                    else:
-                        st.info("No articles found matching these topics on the selected dates.")
-                    
-                for article in processed_articles:
-                    title = article.get('title') or ""
-                    url = article.get('url') or "#"
-                    image_url = article.get('urlToImage')
-                    description = article.get('description') or ""
-                    
-                    tags_html = ""
-                    article_tags = article['computed_tags']
-                    visible_tags = article_tags[:2]
-                    hidden_tags = article_tags[2:]
-                    overflow_count = len(hidden_tags)
-                    
-                    for tag in visible_tags:
-                        tags_html += f'<span class="chip chip-category">{tag}</span>'
-                    
-                    if overflow_count > 0:
-                        tooltip_text = ", ".join(hidden_tags)
-                        tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
-                    
-                    iso_date = article.get('publishedAt', '')[:10]
-                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
-                    
-                    api_source_name = article.get('source', {}).get('name', 'Unknown')
-                    api_source_id = article.get('source', {}).get('id', '') 
-                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
-                    
-                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
-                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
-                    
-                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
-                    
-            # --- TAB 2: AI OVERVIEW ---
-            with tab_ai:
-                st.header("✨ AI Overview")
-                
-                if not processed_articles:
-                    st.info("No articles available to summarize.")
-                else:
-                    prompt_lines = []
-                    for a in processed_articles[:30]:
-                        cat_string = ", ".join(a['computed_tags'][:2])
-                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {a.get('title')} | Desc: {a.get('description')}")
-                    
-                    prompt_data_string = "\n".join(prompt_lines)
-                    
-                    if st.button("Generate Summary", type="primary"):
-                        with st.spinner("Gemini is reading the news..."):
-                            summary_markdown = get_gemini_summary(prompt_data_string)
-                            st.markdown(summary_markdown)
+    .stButton button { width: 100%; border-radius:
