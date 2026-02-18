@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, date
 # ⚠️ REPLACE THIS WITH YOUR ACTUAL KEY OR USE st.secrets["NEWS_API_KEY"]
 API_KEY = '68bf6222804f431d9f3697e73d759099' 
 
-# Map the API 'slugs' to clean Display Names
 SOURCE_MAPPING = {
     'reuters': 'Reuters',
     'associated-press': 'Associated Press',
@@ -18,32 +17,26 @@ SOURCE_MAPPING = {
     'bbc-news': 'BBC News',
     'al-jazeera-english': 'Al Jazeera'
 }
-
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
+NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
-# Default neutral list
-NEUTRAL_SOURCES = [
-    'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
-]
+# --- TOPIC & KEYWORD MAPPING ---
+# We need this to "guess" which topic an article belongs to locally
+TOPIC_KEYWORDS = {
+    "Technology": ["tech", "technology", "software", "hardware", "silicon", "apple", "google", "microsoft", "internet"],
+    "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural"],
+    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "inflation", "fed", "rates"],
+    "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "coinbase", "blockchain", "nft"],
+    "Politics": ["politics", "congress", "senate", "biden", "trump", "white house", "election", "law"],
+    "Epstein Files": ["epstein", "ghislaine", "maxwell", "documents", "list", "court"],
+    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "plant", "energy"],
+    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "rocket", "orbit", "galaxy"]
+}
 
-# Define Topics
-SUGGESTED_TOPICS = [
-    "Technology", 
-    "Artificial Intelligence", 
-    "Stock Market", 
-    "Crypto", 
-    "Politics", 
-    "Epstein Files", 
-    "Nuclear", 
-    "Space Exploration"
-]
+SUGGESTED_TOPICS = list(TOPIC_KEYWORDS.keys())
 
 # --- INITIALIZE SESSION STATE ---
-if 'applied_topic' not in st.session_state:
-    # Default: Select ALL topics joined by OR
-    formatted_defaults = [f'"{t}"' for t in SUGGESTED_TOPICS]
-    st.session_state.applied_topic = " OR ".join(formatted_defaults)
-    
+if 'applied_start_date' not in st.session_state:
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
     st.session_state.applied_end_date = date.today()
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
@@ -70,7 +63,6 @@ def fetch_news(query, sources, from_date, to_date, api_key):
     try:
         response = requests.get(url, params=params)
         data = response.json()
-        
         if data.get('status') == 'ok':
             articles = data['articles']
             valid_articles = [a for a in articles if a['title'] != "[Removed]"]
@@ -84,6 +76,37 @@ def analyze_sentiment(text):
     blob = TextBlob(text)
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
+# --- LOCAL FILTERING FUNCTION ---
+def filter_articles_local(articles, selected_topics):
+    # If user selected EVERYTHING (or nothing, defaulting to all), return all
+    if not selected_topics or len(selected_topics) == len(SUGGESTED_TOPICS):
+        return articles
+        
+    filtered = []
+    for article in articles:
+        # Combine title and description for searching
+        text_content = (article['title'] + " " + (article['description'] or "")).lower()
+        
+        # Check if article matches ANY of the selected topics
+        match_found = False
+        for topic in selected_topics:
+            keywords = TOPIC_KEYWORDS.get(topic, [])
+            # Also check the topic name itself
+            if topic.lower() in text_content:
+                match_found = True
+                break
+            # Check associated keywords
+            for k in keywords:
+                if k in text_content:
+                    match_found = True
+                    break
+            if match_found: break
+        
+        if match_found:
+            filtered.append(article)
+            
+    return filtered
+
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
@@ -91,43 +114,23 @@ st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* --- Card Container --- */
+    /* Card Styles */
     .card-container {
-        background-color: #262730; 
-        padding: 24px; 
-        border-radius: 12px;
-        margin-bottom: 20px; 
-        border: 1px solid #363636;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
+        background-color: #262730; padding: 24px; border-radius: 12px;
+        margin-bottom: 20px; border: 1px solid #363636;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease;
     }
-    
     .card-container:hover {
-        background-color: #2E2F38; 
-        border-color: #3B82F6;     
-        box-shadow: 0 8px 15px rgba(0,0,0,0.3); 
-        transform: translateY(-3px); 
+        background-color: #2E2F38; border-color: #3B82F6;     
+        box-shadow: 0 8px 15px rgba(0,0,0,0.3); transform: translateY(-3px); 
     }
-
-    /* --- FLEX LAYOUT --- */
-    .card-content {
-        display: flex;
-        justify-content: space-between;
-        align-items: center; 
-        gap: 20px;
-    }
+    .card-content { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
     .text-column { flex: 1; min-width: 0; }
-    .img-column img {
-        width: 120px; height: 120px; object-fit: cover;
-        border-radius: 8px; border: 1px solid #444;
-        flex-shrink: 0; display: block; 
-    }
-
-    /* --- MOBILE --- */
+    .img-column img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; }
+    
     @media (max-width: 768px) {
         .card-content { flex-direction: column-reverse; align-items: stretch; }
         .img-column { width: 100%; margin-bottom: 16px; }
@@ -135,54 +138,29 @@ st.markdown("""
         .headline { font-size: 20px; }
     }
     
-    /* Headline */
     .headline { 
-        display: block; font-family: 'Merriweather', serif; 
-        font-size: 24px; font-weight: 700; color: #E0E0E0; 
-        text-decoration: none; line-height: 1.4;
+        display: block; font-family: 'Merriweather', serif; font-size: 24px; 
+        font-weight: 700; color: #E0E0E0; text-decoration: none; line-height: 1.4;
         transition: color 0.2s; letter-spacing: -0.3px; margin-bottom: 8px;
     }
     .card-container:hover .headline { color: #60A5FA; }
     
-    /* Metadata */
-    .metadata { 
-        display: flex; align-items: center; flex-wrap: wrap;
-        gap: 10px; font-family: 'Inter', sans-serif; 
-        font-size: 12px; color: #A0A0A0; 
-    }
-    
-    /* Chips */
-    .chip {
-        display: inline-flex; align-items: center; padding: 4px 10px;
-        border-radius: 6px; font-size: 11px;
-        font-family: 'Inter', sans-serif; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.5px; color: white;
-    }
+    .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
+    .chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
     .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
     .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
-
-    /* Description */
-    .description-text {
-        font-family: 'Inter', sans-serif; font-size: 15px;
-        margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300;
-    }
-    
-    /* Update Button Styling */
-    .stButton button {
-        width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif;
-    }
+    .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
+    .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
 """, unsafe_allow_html=True)
-
-# --- HEADER & CONTROLS ---
 
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
 
-# 1. TOPIC SELECTION (Moved to Main Page)
+# --- CONTROLS (MAIN PAGE) ---
 if "topic_pills" not in st.session_state:
-    st.session_state.topic_pills = SUGGESTED_TOPICS
+    st.session_state.topic_pills = SUGGESTED_TOPICS # Default: All Selected
     
 if "custom_search" not in st.session_state:
     st.session_state.custom_search = ""
@@ -190,12 +168,13 @@ if "custom_search" not in st.session_state:
 def on_pill_change():
     if st.session_state.topic_pills:
         st.session_state.custom_search = ""
-        
+
 def on_text_change():
     if st.session_state.custom_search:
         st.session_state.topic_pills = []
 
-st.pills(
+# 1. TOPIC CHIPS
+selected_topics = st.pills(
     "Trending now:",
     options=SUGGESTED_TOPICS,
     key="topic_pills",
@@ -203,28 +182,33 @@ st.pills(
     selection_mode="multi"
 )
 
-st.text_input(
+# 2. SEARCH BAR
+custom_query = st.text_input(
     "Or search custom topic:", 
     key="custom_search",
     on_change=on_text_change,
     placeholder="e.g. Nvidia, Bitcoin, Election..."
 )
 
-# Calculate Topic String
-if st.session_state.custom_search:
-    current_topic = st.session_state.custom_search
-elif st.session_state.topic_pills:
-    formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.topic_pills]
-    current_topic = " OR ".join(formatted_topics)
-else:
-    current_topic = "General"
+# --- QUERY LOGIC (The Smart Part) ---
+# We calculate two things:
+# 1. 'api_query': What we send to the NewsAPI (Broad, Catch-all)
+# 2. 'is_local_filtering': Whether we rely on Python to filter the results
 
-# --- SIDEBAR (Advanced Filters Only) ---
+if custom_query:
+    # If user typed something specific, we MUST hit the API with that specific query
+    api_query = custom_query
+    is_local_filtering = False 
+else:
+    # If using chips, we ALWAYS ask API for ALL TOPICS combined.
+    # This ensures the API call parameters never change, so we hit the Cache 100% of the time.
+    formatted_topics = [f'"{t}"' if " " in t else t for t in SUGGESTED_TOPICS]
+    api_query = " OR ".join(formatted_topics)
+    is_local_filtering = True
+
+# --- SIDEBAR (Settings that force API refresh) ---
 with st.sidebar:
     st.header("Advanced Filters")
-    
-    # 2. TIMEFRAME
-    st.subheader("Timeframe")
     today = date.today()
     current_date_range = st.date_input("Select Date Range", value=(today - timedelta(days=7), today), min_value=today - timedelta(days=29), max_value=today, format="MM/DD/YYYY")
     if len(current_date_range) == 2:
@@ -232,42 +216,26 @@ with st.sidebar:
     else:
         current_start, current_end = today, today
 
-    # 3. SOURCES
-    st.subheader("Trusted Sources")
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=display_names, selection_mode="multi")
-    
     if selected_display_names:
         current_sources = [REVERSE_MAPPING[name] for name in selected_display_names]
     else:
         current_sources = []
     
-    # 4. SENSATIONALISM
-    st.subheader("Sensationalism Filter")
     current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
 
-# --- DETECT CHANGES ---
-has_changes = False
-if (current_topic != st.session_state.applied_topic or
-    current_start != st.session_state.applied_start_date or
-    current_end != st.session_state.applied_end_date or
-    set(current_sources) != set(st.session_state.applied_sources) or
-    current_emotional != st.session_state.applied_emotional):
-    has_changes = True
+    # We need a button to force refresh DATE or SOURCES, 
+    # but NOT for chips (chips should be instant/cached)
+    if st.button("Update Timeframe/Sources", type="primary"):
+         st.session_state.applied_start_date = current_start
+         st.session_state.applied_end_date = current_end
+         st.session_state.applied_sources = current_sources
+         st.session_state.applied_emotional = current_emotional
+         st.rerun()
 
-# --- UPDATE BUTTON (Main Feed) ---
-# We put this here so it's right after the search input
-if st.button("Update Feed", type="primary" if has_changes else "secondary"):
-    st.session_state.applied_topic = current_topic
-    st.session_state.applied_start_date = current_start
-    st.session_state.applied_end_date = current_end
-    st.session_state.applied_sources = current_sources
-    st.session_state.applied_emotional = current_emotional
-    st.rerun()
-
+# --- MAIN FEED ---
 st.divider()
-
-# --- MAIN FEED RENDER ---
 
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key in the code configuration.")
@@ -275,20 +243,28 @@ else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
-        with st.spinner(f"Fetching wire updates..."):
-            articles = fetch_news(
-                st.session_state.applied_topic, 
+        with st.spinner("Loading wire..."):
+            # 1. FETCH (This hits Cache if api_query hasn't changed)
+            raw_articles = fetch_news(
+                api_query, 
                 st.session_state.applied_sources, 
                 st.session_state.applied_start_date, 
                 st.session_state.applied_end_date,
                 API_KEY
             )
             
+            # 2. FILTER LOCALLY (If we are in Chips mode)
+            if is_local_filtering and raw_articles:
+                final_articles = filter_articles_local(raw_articles, selected_topics)
+            else:
+                final_articles = raw_articles
+
+            # 3. RENDER
             count = 0
-            if not articles:
-                st.info("No articles found for these topics.")
+            if not final_articles:
+                st.info("No articles found matching your filters.")
                 
-            for article in articles:
+            for article in final_articles:
                 title = article['title']
                 url = article['url']
                 image_url = article.get('urlToImage')
@@ -306,7 +282,9 @@ else:
                 
                 is_emotional = subjectivity > 0.5
                 
-                if st.session_state.applied_emotional and is_emotional:
+                # Check emotional filter
+                # We use the sidebar value directly here so it updates instantly
+                if current_emotional and is_emotional:
                     continue
                 
                 count += 1
@@ -339,5 +317,5 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 
-            if count == 0 and articles:
-                st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'. Try unchecking the filter in the sidebar.")
+            if count == 0 and final_articles:
+                st.warning("Articles were fetched, but all were filtered by the 'Sensationalism Filter'.")
