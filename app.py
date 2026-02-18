@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
 # ⚠️ REPLACE THIS WITH YOUR ACTUAL KEY OR USE st.secrets["NEWS_API_KEY"]
-API_KEY = '68bf6222804f431d9f3697e73d759099' 
+API_KEY = 'YOUR_NEWSAPI_KEY_HERE' 
 
 # Map the API 'slugs' to clean Display Names
 SOURCE_MAPPING = {
@@ -36,9 +36,17 @@ if 'applied_topic' not in st.session_state:
     st.session_state.applied_emotional = True
 
 # --- FUNCTIONS ---
-@st.cache_data(ttl=300) # Caches results for 5 minutes to save API calls
+
+# OPTIMIZATION: Cache set to 1 hour (3600s) to save API calls.
+@st.cache_data(ttl=3600, show_spinner=False) 
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
+    
+    # Sort sources to ensure the list is always in the same order.
+    # This prevents "['bbc', 'cnn']" and "['cnn', 'bbc']" from creating two different cache entries.
+    if sources:
+        sources.sort()
+        
     params = {
         'q': query if query else 'general',
         'sources': ','.join(sources),
@@ -46,17 +54,20 @@ def fetch_news(query, sources, from_date, to_date, api_key):
         'to': to_date.strftime('%Y-%m-%d'),
         'language': 'en',
         'sortBy': 'publishedAt',
+        'pageSize': 100,  # ALWAYS fetch max (100) to get the most value per credit
         'apiKey': api_key
     }
     try:
         response = requests.get(url, params=params)
         data = response.json()
+        
         if data.get('status') == 'ok':
             articles = data['articles']
             # Filter out removed articles immediately
             valid_articles = [a for a in articles if a['title'] != "[Removed]"]
             valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
             return valid_articles
+            
         return []
     except Exception as e:
         return []
@@ -78,25 +89,24 @@ st.markdown("""
     .card-container {
         background-color: #262730; 
         padding: 20px; 
-        border-radius: 12px; /* Slightly rounder */
+        border-radius: 12px;
         margin-bottom: 20px; 
         border: 1px solid #363636;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        /* Smooth transition for hover effects */
         transition: all 0.3s ease;
     }
     
     /* THE HOVER STATE */
     .card-container:hover {
-        background-color: #2E2F38; /* Slightly lighter background */
-        border-color: #3B82F6;     /* Subtle blue border highlight */
-        box-shadow: 0 8px 15px rgba(0,0,0,0.3); /* Deeper shadow for "lift" */
-        transform: translateY(-3px); /* Slight upward movement */
+        background-color: #2E2F38; 
+        border-color: #3B82F6;     
+        box-shadow: 0 8px 15px rgba(0,0,0,0.3); 
+        transform: translateY(-3px); 
     }
     
     /* Headline Styling */
     .headline { 
-        display: block; /* Makes the link fill more space */
+        display: block; 
         font-family: 'Georgia', serif; 
         font-size: 22px; 
         font-weight: bold; 
@@ -105,14 +115,11 @@ st.markdown("""
         line-height: 1.4;
         transition: color 0.2s;
     }
-    # .headline:hover {
-    #    color: #60A5FA; 
-    # }
-    /* Make the whole card clickable-feeling by changing cursor on hover */
+    
+    /* Highlight title on card hover */
     .card-container:hover .headline {
-         color: #60A5FA; /* Highlight title on card hover */
+         color: #60A5FA; 
     }
-
     
     /* Metadata Container */
     .metadata { 
@@ -337,8 +344,6 @@ else:
                     sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
                 
                 # HTML Card
-                # FIX: Restored the <a href> tag for the headline. 
-                # The card still has the hover effect defined in CSS.
                 st.markdown(f"""
                 <div class="card-container">
                     <a href="{url}" target="_blank" class="headline">{title}</a>
