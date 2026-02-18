@@ -171,11 +171,12 @@ st.markdown("""
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
     
-    /* NEW: Overflow Chip Style (+2) */
+    /* UPDATED: Overflow Chip Style (+2) with Help Cursor */
     .chip-overflow { 
         background-color: transparent; 
-        color: #9CA3AF; /* Gray text */
-        border: 1px dashed #4B5563; /* Dashed Gray Border */
+        color: #9CA3AF; 
+        border: 1px dashed #4B5563;
+        cursor: help; /* Changes mouse to question mark/pointer */
     }
 
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
@@ -272,22 +273,23 @@ else:
                 # --- AUTO-TAGGING & SORTING ---
                 article_tags = classify_article(title + " " + description, st.session_state.active_default, st.session_state.active_custom)
                 
-                # Create Priority List: Active Custom > Active Default > General
                 priority_list = st.session_state.active_custom + st.session_state.active_default
-                
-                # Sort tags based on priority list
                 article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
-                # Limit to 2 tags + Overflow
+                # --- TAG LOGIC WITH TOOLTIP ---
                 tags_html = ""
                 visible_tags = article_tags[:2]
-                overflow_count = len(article_tags) - 2
+                hidden_tags = article_tags[2:]
+                overflow_count = len(hidden_tags)
                 
                 for tag in visible_tags:
                     tags_html += f'<span class="chip chip-category">{tag}</span>'
                 
                 if overflow_count > 0:
-                    tags_html += f'<span class="chip chip-overflow">+{overflow_count}</span>'
+                    # Create the tooltip string (e.g., "Crypto, Politics")
+                    tooltip_text = ", ".join(hidden_tags)
+                    # Add title attribute for browser native tooltip
+                    tags_html += f'<span class="chip chip-overflow" title="{tooltip_text}">+{overflow_count}</span>'
                 
                 # --- SENTIMENT ---
                 subjectivity, polarity = analyze_sentiment(title + " " + description)
