@@ -82,13 +82,16 @@ st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 # --- CSS STYLING ---
 st.markdown("""
     <style>
+    /* IMPORT GOOGLE FONTS */
+    @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
     /* --- Card Container & Hover Effects --- */
     .card-container {
         background-color: #262730; 
-        padding: 20px; 
+        padding: 24px; 
         border-radius: 12px;
         margin-bottom: 20px; 
         border: 1px solid #363636;
@@ -104,16 +107,17 @@ st.markdown("""
         transform: translateY(-3px); 
     }
     
-    /* Headline Styling */
+    /* Headline Styling - UPDATED FONT */
     .headline { 
         display: block; 
-        font-family: 'Georgia', serif; 
-        font-size: 22px; 
-        font-weight: bold; 
+        font-family: 'Merriweather', serif; 
+        font-size: 24px; 
+        font-weight: 700; 
         color: #E0E0E0; 
         text-decoration: none; 
         line-height: 1.4;
         transition: color 0.2s;
+        letter-spacing: -0.3px;
     }
     
     /* Highlight title on card hover */
@@ -121,14 +125,14 @@ st.markdown("""
          color: #60A5FA; 
     }
     
-    /* Metadata Container */
+    /* Metadata Container - UPDATED FONT */
     .metadata { 
         display: flex;
         align-items: center;
         flex-wrap: wrap;
         gap: 10px;
-        margin-top: 12px;
-        font-family: 'Arial', sans-serif; 
+        margin-top: 14px;
+        font-family: 'Inter', sans-serif; 
         font-size: 12px; 
         color: #A0A0A0; 
     }
@@ -138,8 +142,9 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         padding: 4px 10px;
-        border-radius: 12px;
+        border-radius: 6px; /* Slightly squarer for 'tech' feel */
         font-size: 11px;
+        font-family: 'Inter', sans-serif;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -162,12 +167,14 @@ st.markdown("""
         border: 1px solid #EF4444;
     }
 
+    /* Description Text - UPDATED FONT */
     .description-text {
-        font-family: 'Arial', sans-serif;
-        font-size: 14px;
-        margin-top: 15px;
+        font-family: 'Inter', sans-serif;
+        font-size: 15px;
+        margin-top: 16px;
         color: #D1D5DB;
         line-height: 1.6;
+        font-weight: 300;
     }
     
     /* Sidebar Button Styling */
@@ -175,6 +182,7 @@ st.markdown("""
         width: 100%;
         border-radius: 5px;
         transition: background-color 0.3s ease;
+        font-family: 'Inter', sans-serif;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -188,7 +196,7 @@ with st.sidebar:
     st.header("Filters")
     
     # --- 1. TOPIC SELECTION ---
-    SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Space Exploration","Nuclear"]
+    SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Space Exploration"]
 
     if "topic_pills" not in st.session_state:
         st.session_state.topic_pills = "Technology"
