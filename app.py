@@ -213,7 +213,6 @@ with st.sidebar:
     st.header("Filters")
     
     # --- 1. TOPIC SELECTION ---
-    # Added 'Nuclear' to the list
     SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Nuclear", "Space Exploration"]
 
     if "topic_pills" not in st.session_state:
@@ -370,14 +369,10 @@ else:
                 else:
                     sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
                 
-                # Build Image HTML (Only if exists)
+                # Build Image HTML (FIXED: Single line to avoid Markdown indendation errors)
                 img_html = ""
                 if image_url:
-                    img_html = f"""
-                    <div class="img-column">
-                        <img src="{image_url}" alt="Thumbnail">
-                    </div>
-                    """
+                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>'
                 
                 # HTML Card Structure
                 st.markdown(f"""
