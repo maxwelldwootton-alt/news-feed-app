@@ -161,11 +161,19 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
+    /* FIX HORIZONTAL SCROLLING ON MOBILE */
+    * { box-sizing: border-box; }
+    html, body, [data-testid="stAppViewContainer"], .main .block-container {
+        overflow-x: hidden;
+        max-width: 100vw;
+    }
+    
     /* Card Styles */
     .card-container {
         background-color: #262730; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; border: 1px solid #363636;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease;
+        width: 100%;
     }
     .card-container:hover {
         background-color: #2E2F38; border-color: #3B82F6;     
@@ -229,6 +237,10 @@ st.markdown("""
         border: 1px solid #374151;
         box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         pointer-events: none;
+        
+        /* Ensure tooltip doesn't cause overflow on mobile edges */
+        max-width: 90vw;
+        word-wrap: break-word;
     }
 
     .chip-overflow .tooltip-text::after {
@@ -242,7 +254,7 @@ st.markdown("""
         border-color: #1F2937 transparent transparent transparent;
     }
 
-    .chip-overflow:hover .tooltip-text {
+    .chip-overflow:hover .tooltip-text, .chip-overflow:active .tooltip-text {
         visibility: visible;
         opacity: 1;
     }
@@ -251,9 +263,6 @@ st.markdown("""
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
 """, unsafe_allow_html=True)
-
-st.title("📰 The Wire")
-st.caption("No algorithms. No comments. Just headlines.")
 
 # --- SEARCH & CONTROLS ---
 
