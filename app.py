@@ -297,4 +297,81 @@ else:
                 text_to_analyze = f"{title} {description} {content}"
                 
                 # Look for matching tags locally
-                article_tags = classify_article(text_
+                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                
+                # TRUST THE API: If the API sent us this article based on our query, but our 
+                # local scanner missed the keyword, force-tag it to the primary active chip!
+                if not article_tags and safe_selection:
+                    article_tags = [safe_selection[0]]
+                
+                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                
+                subjectivity, polarity = analyze_sentiment(text_to_analyze)
+                is_emotional = subjectivity > 0.5
+                if current_emotional and is_emotional: 
+                    continue 
+                
+                article['computed_tags'] = article_tags
+                article['is_emotional'] = is_emotional
+                processed_articles.append(article)
+
+            tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
+            
+            # --- TAB 1: THE FEED ---
+            with tab_feed:
+                if not processed_articles:
+                    if raw_articles:
+                        st.info("Articles were found by the API, but they were filtered out by your Sensationalism setting.")
+                    else:
+                        st.info("No articles found matching these topics on the selected dates.")
+                    
+                for article in processed_articles:
+                    title = article.get('title') or ""
+                    url = article.get('url') or "#"
+                    image_url = article.get('urlToImage')
+                    description = article.get('description') or ""
+                    
+                    tags_html = ""
+                    article_tags = article['computed_tags']
+                    visible_tags = article_tags[:2]
+                    hidden_tags = article_tags[2:]
+                    overflow_count = len(hidden_tags)
+                    
+                    for tag in visible_tags:
+                        tags_html += f'<span class="chip chip-category">{tag}</span>'
+                    
+                    if overflow_count > 0:
+                        tooltip_text = ", ".join(hidden_tags)
+                        tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
+                    
+                    iso_date = article.get('publishedAt', '')[:10]
+                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
+                    
+                    api_source_name = article.get('source', {}).get('name', 'Unknown')
+                    api_source_id = article.get('source', {}).get('id', '') 
+                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+                    
+                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
+                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
+                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
+                    
+                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
+                    
+            # --- TAB 2: AI OVERVIEW ---
+            with tab_ai:
+                st.header("✨ AI Overview")
+                
+                if not processed_articles:
+                    st.info("No articles available to summarize.")
+                else:
+                    prompt_lines = []
+                    for a in processed_articles[:30]:
+                        cat_string = ", ".join(a['computed_tags'][:2])
+                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {a.get('title')} | Desc: {a.get('description')}")
+                    
+                    prompt_data_string = "\n".join(prompt_lines)
+                    
+                    if st.button("Generate Summary", type="primary"):
+                        with st.spinner("Gemini is reading the news..."):
+                            summary_markdown = get_gemini_summary(prompt_data_string)
+                            st.markdown(summary_markdown)
