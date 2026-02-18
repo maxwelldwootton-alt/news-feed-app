@@ -278,4 +278,108 @@ with st.sidebar:
          st.session_state.applied_emotional = current_emotional
          st.rerun()
 
-st.divider
+st.divider()
+
+# --- MAIN APP BODY ---
+if not NEWS_API_KEY:
+    st.warning("⚠️ Please enter a valid NewsAPI key.")
+elif not active_topics:
+    st.info("👈 Please select at least one feed category above to view articles.")
+else:
+    if not st.session_state.applied_sources:
+        st.warning("⚠️ Please select at least one source in the sidebar.")
+    else:
+        with st.spinner("Loading wire..."):
+            
+            # The API call is now completely synced with your UI selections
+            raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+            
+            processed_articles = []
+            priority_list = st.session_state.active_custom + st.session_state.active_default
+            
+            for article in raw_articles:
+                title = article.get('title') or ""
+                description = article.get('description') or ""
+                content = article.get('content') or ""
+                text_to_analyze = f"{title} {description} {content}"
+                
+                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                
+                # Because we strictly query the API, if the API returned it, it belongs to an active chip.
+                if not article_tags and active_topics:
+                    article_tags = [active_topics[0]]
+                
+                if not article_tags:
+                    continue
+                
+                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                
+                subjectivity, polarity = analyze_sentiment(text_to_analyze)
+                is_emotional = subjectivity > 0.5
+                if current_emotional and is_emotional: 
+                    continue 
+                
+                article['computed_tags'] = article_tags
+                article['is_emotional'] = is_emotional
+                processed_articles.append(article)
+
+            tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
+            
+            # --- TAB 1: THE FEED ---
+            with tab_feed:
+                if not processed_articles:
+                    if raw_articles:
+                        st.info("Articles were found, but all were filtered out by your Sensationalism setting.")
+                    else:
+                        st.info("No articles found matching these topics on the selected dates.")
+                    
+                for article in processed_articles:
+                    title = article.get('title') or ""
+                    url = article.get('url') or "#"
+                    image_url = article.get('urlToImage')
+                    description = article.get('description') or ""
+                    
+                    tags_html = ""
+                    article_tags = article['computed_tags']
+                    visible_tags = article_tags[:2]
+                    hidden_tags = article_tags[2:]
+                    overflow_count = len(hidden_tags)
+                    
+                    for tag in visible_tags:
+                        tags_html += f'<span class="chip chip-category">{tag}</span>'
+                    
+                    if overflow_count > 0:
+                        tooltip_text = ", ".join(hidden_tags)
+                        tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
+                    
+                    iso_date = article.get('publishedAt', '')[:10]
+                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
+                    
+                    api_source_name = article.get('source', {}).get('name', 'Unknown')
+                    api_source_id = article.get('source', {}).get('id', '') 
+                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+                    
+                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
+                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
+                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
+                    
+                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
+                    
+            # --- TAB 2: AI OVERVIEW ---
+            with tab_ai:
+                st.header("✨ AI Overview")
+                
+                if not processed_articles:
+                    st.info("No articles available to summarize.")
+                else:
+                    prompt_lines = []
+                    for a in processed_articles[:30]:
+                        cat_string = ", ".join(a['computed_tags'][:2])
+                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {a.get('title')} | Desc: {a.get('description')}")
+                    
+                    prompt_data_string = "\n".join(prompt_lines)
+                    
+                    if st.button("Generate Summary", type="primary"):
+                        with st.spinner("Gemini is reading the news..."):
+                            summary_markdown = get_gemini_summary(prompt_data_string)
+                            st.markdown(summary_markdown)
