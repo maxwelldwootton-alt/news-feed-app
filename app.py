@@ -4,7 +4,7 @@ from textblob import TextBlob
 from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
-API_KEY = 'c85bd651b9c24f97918f8c85ddc4a36f' 
+API_KEY = '68bf6222804f431d9f3697e73d759099' 
 
 # Map the API 'slugs' to clean Display Names
 SOURCE_MAPPING = {
