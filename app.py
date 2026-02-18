@@ -4,8 +4,7 @@ from textblob import TextBlob
 from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
-# API Key Hardcoded for iteration
-API_KEY = '68bf6222804f431d9f3697e73d759099'
+API_KEY = '68bf6222804f431d9f3697e73d759099' 
 
 SOURCE_MAPPING = {
     'reuters': 'Reuters',
@@ -25,13 +24,23 @@ DEFAULT_TOPICS = [
     "Politics", "Epstein Files", "Nuclear", "Space Exploration"
 ]
 
-# --- INITIALIZE SESSION STATE ---
+# --- KEYWORD MATCHING ENGINE ---
+# This helps us guess which category an article belongs to
+TOPIC_KEYWORDS = {
+    "Technology": ["tech", "software", "hardware", "apple", "google", "microsoft", "internet", "device", "silicon"],
+    "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural", "nvidia"],
+    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "rate", "fed", "trading"],
+    "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "blockchain", "token", "coinbase"],
+    "Politics": ["politics", "biden", "trump", "congress", "senate", "law", "election", "campaign"],
+    "Epstein Files": ["epstein", "ghislaine", "maxwell", "document", "court", "list"],
+    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor"],
+    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket"]
+}
 
-# 1. The Master List of Custom Topics (Saved permanently in session)
+# --- INITIALIZE SESSION STATE ---
 if 'saved_custom_topics' not in st.session_state:
     st.session_state.saved_custom_topics = []
 
-# 2. The Active Selections (What is currently green/selected)
 if 'active_default' not in st.session_state:
     st.session_state.active_default = DEFAULT_TOPICS.copy()
 
@@ -78,36 +87,41 @@ def analyze_sentiment(text):
     blob = TextBlob(text)
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
+def classify_article(text, active_defaults, active_customs):
+    """Scans text to find which topics match."""
+    found_tags = []
+    text_lower = text.lower()
+    
+    # 1. Check Default Topics (using keyword dictionary)
+    for topic in active_defaults:
+        keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
+        # Add topic name itself to search list
+        if topic.lower() not in keywords:
+            keywords.append(topic.lower())
+            
+        for k in keywords:
+            if k in text_lower:
+                found_tags.append(topic)
+                break # Found a match for this topic, stop checking keywords
+    
+    # 2. Check Custom Topics (Direct string match)
+    for topic in active_customs:
+        if topic.lower() in text_lower:
+            found_tags.append(topic)
+            
+    # Deduplicate (just in case)
+    return list(dict.fromkeys(found_tags))
+
 # --- CALLBACKS ---
 def add_custom_topic():
-    """Adds a topic and automatically selects it."""
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
-        
-        # Add to SAVED list if new
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics.insert(0, new_topic)
-            
-        # Add to ACTIVE selection immediately
         if new_topic not in st.session_state.active_custom:
             st.session_state.active_custom.append(new_topic)
-            
     st.session_state.search_input = ""
-
-def handle_custom_click():
-    """Logic to handle clicks depending on Edit Mode."""
-    if st.session_state.edit_mode:
-        # DELETE MODE: Find what changed and REMOVE it from saved list
-        
-        # We compare the widget state (new) vs the saved state (old)
-        # Note: In delete mode, we technically don't care about selection, 
-        # but st.pills forces us to think in terms of selection.
-        # A simpler way: The user clicked something. If it's in the list, kill it.
-        
-        # Actually, standard pills behavior is better for Toggle.
-        # For Delete, we will use a separate mechanism in the UI below to be safer.
-        pass
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
@@ -147,11 +161,21 @@ st.markdown("""
     }
     .card-container:hover .headline { color: #60A5FA; }
     
-    .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
-    .chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
+    .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
+    
+    /* STANDARD CHIPS */
+    .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
     .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
     .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
+    
+    /* NEW: TREND CATEGORY CHIP (Blue Outline) */
+    .chip-category { 
+        background-color: transparent; 
+        color: #60A5FA; /* Light Blue Text */
+        border: 1px solid #3B82F6; /* Blue Border */
+    }
+
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
@@ -160,73 +184,40 @@ st.markdown("""
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
 
-# --- SEARCH & CUSTOM FEED LOGIC ---
+# --- SEARCH & CONTROLS ---
 
 col_search, col_edit = st.columns([4, 1])
 with col_search:
     st.text_input(
-        "Add a custom topic:", 
+        "Add a custom feed:", 
         key="search_input",
         on_change=add_custom_topic,
         placeholder="e.g. Nvidia, Bitcoin, Election...",
         label_visibility="collapsed"
     )
 with col_edit:
-    # THE EDIT MODE TOGGLE
-    # This acts like "Edit Home Screen" on iPhone
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
 
-# --- CUSTOM CHIPS SECTION ---
+# CUSTOM CHIPS
 if st.session_state.saved_custom_topics:
     st.write("**My Feeds**")
-    
     if is_edit_mode:
-        st.warning("🗑️ **Delete Mode Active:** Uncheck a chip below to delete it permanently.")
-        
-        # IN DELETE MODE:
-        # We show all topics. If user changes state, we detect which one was "unselected" (clicked) and remove it.
-        # To make this intuitive: We default them all to SELECTED. The user "Unchecks" to delete.
-        
+        st.warning("🗑️ **Delete Mode Active:** Uncheck to delete.")
         def on_delete_change():
-            # Find what is MISSING from the widget compared to the saved list
             remaining = st.session_state.temp_delete_widget
             st.session_state.saved_custom_topics = remaining
-            # Also cleanup active selections
             st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
-
-        st.pills(
-            "Delete Custom Feeds",
-            options=st.session_state.saved_custom_topics,
-            default=st.session_state.saved_custom_topics, # All selected by default
-            key="temp_delete_widget",
-            on_change=on_delete_change,
-            selection_mode="multi",
-            label_visibility="collapsed"
-        )
         
+        st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
     else:
-        # NORMAL MODE (Select/Deselect)
-        st.pills(
-            "My Feeds",
-            options=st.session_state.saved_custom_topics,
-            key="active_custom",
-            selection_mode="multi",
-            label_visibility="collapsed"
-        )
+        st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
 
-# --- DEFAULT CHIPS SECTION ---
+# DEFAULT CHIPS
 st.write("**Trending Topics**")
-st.pills(
-    "Trending Topics",
-    options=DEFAULT_TOPICS,
-    key="active_default",
-    selection_mode="multi",
-    label_visibility="collapsed"
-)
+st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
 # --- QUERY BUILDING ---
 combined_selection = st.session_state.active_default + st.session_state.active_custom
-
 if combined_selection:
     formatted_topics = [f'"{t}"' if " " in t else t for t in combined_selection]
     api_query = " OR ".join(formatted_topics)
@@ -242,16 +233,11 @@ with st.sidebar:
         current_start, current_end = current_date_range
     else:
         current_start, current_end = today, today
-
+    
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=display_names, selection_mode="multi")
-    if selected_display_names:
-        current_sources = [REVERSE_MAPPING[name] for name in selected_display_names]
-    else:
-        current_sources = []
-    
+    current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
     current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
-
     if st.button("Update Timeframe/Sources", type="primary"):
          st.session_state.applied_start_date = current_start
          st.session_state.applied_end_date = current_end
@@ -262,7 +248,6 @@ with st.sidebar:
 st.divider()
 
 # --- MAIN FEED ---
-
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
@@ -270,13 +255,7 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
-            articles = fetch_news(
-                api_query, 
-                st.session_state.applied_sources, 
-                st.session_state.applied_start_date, 
-                st.session_state.applied_end_date,
-                API_KEY
-            )
+            articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, API_KEY)
             
             count = 0
             if not articles:
@@ -286,31 +265,35 @@ else:
                 title = article['title']
                 url = article['url']
                 image_url = article.get('urlToImage')
+                description = article['description'] or ""
                 
+                # --- AUTO-TAGGING LOGIC ---
+                # Find which active topics match this article
+                article_tags = classify_article(title + " " + description, st.session_state.active_default, st.session_state.active_custom)
+                
+                # Create HTML for tags (if any)
+                tags_html = ""
+                for tag in article_tags:
+                    tags_html += f'<span class="chip chip-category">{tag}</span>'
+                
+                # --- SENTIMENT LOGIC ---
+                subjectivity, polarity = analyze_sentiment(title + " " + description)
+                is_emotional = subjectivity > 0.5
+                if current_emotional and is_emotional: continue
+                count += 1
+                
+                # --- RENDER ---
                 iso_date = article['publishedAt'][:10]
                 date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
-                published_formatted = date_obj.strftime('%b %d, %Y')
+                published_formatted = date_obj.strftime('%b %d')
                 
                 api_source_name = article['source']['name']
                 api_source_id = article['source']['id'] 
                 display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
-
-                description = article['description']
-                subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
-                
-                is_emotional = subjectivity > 0.5
-                
-                if current_emotional and is_emotional:
-                    continue
-                
-                count += 1
                 
                 source_chip = f'<span class="chip chip-source">{display_source}</span>'
                 sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if is_emotional else '<span class="chip chip-neutral">✅ Objective</span>'
-                
-                img_html = ""
-                if image_url:
-                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>'
+                img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
                 
                 st.markdown(f"""
                 <div class="card-container">
@@ -319,13 +302,13 @@ else:
                             <a href="{url}" target="_blank" class="headline">{title}</a>
                             <div class="metadata">
                                 {source_chip}
-                                <span style="color: #6B7280; font-weight: bold;">•</span>
+                                {tags_html} <span style="color: #6B7280; font-weight: bold;">•</span>
                                 {sentiment_chip}
                                 <span style="color: #6B7280; font-weight: bold;">•</span>
                                 <span>{published_formatted}</span>
                             </div>
                             <p class="description-text">
-                                {description if description else ''}
+                                {description}
                             </p>
                         </div>
                         {img_html}
