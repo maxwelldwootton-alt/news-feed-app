@@ -162,30 +162,13 @@ st.markdown("""
     footer {visibility: hidden;}
     
     /* 🛑 THE ULTIMATE MOBILE HORIZONTAL SCROLL FIX 🛑 */
-    /* 1. Use 100% instead of 100vw to avoid vertical scrollbar math issues */
-    html, body {
-        max-width: 100% !important;
-        overflow-x: hidden !important;
-        position: relative;
-    }
-    
-    /* 2. Lock down Streamlit's specific wrapper elements */
-    .stApp, [data-testid="stAppViewContainer"], .main .block-container, [data-testid="stHeader"] {
-        max-width: 100% !important;
-        width: 100% !important;
+    html, body, .stApp, [data-testid="stAppViewContainer"], .main .block-container {
+        max-width: 100vw !important;
         overflow-x: hidden !important;
     }
     
-    /* 3. Global reset to prevent padding from expanding widths */
-    *, *::before, *::after { 
+    * { 
         box-sizing: border-box !important; 
-    }
-    
-    /* 4. Force aggressive word wrapping so long URLs NEVER push the screen wide */
-    p, a, span, div, h1, h2, h3 {
-        overflow-wrap: break-word !important;
-        word-wrap: break-word !important;
-        word-break: break-word !important;
     }
     
     /* Card Styles */
@@ -193,29 +176,18 @@ st.markdown("""
         background-color: #262730; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; border: 1px solid #363636;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease;
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow: hidden; /* Prevent ANYTHING inside the card from spilling out */
+        max-width: 100%; /* Prevents card from pushing past the screen */
     }
     .card-container:hover {
         background-color: #2E2F38; border-color: #3B82F6;     
         box-shadow: 0 8px 15px rgba(0,0,0,0.3); transform: translateY(-3px); 
     }
+    .card-content { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
     
-    .card-content { 
-        display: flex; justify-content: space-between; align-items: center; gap: 20px; 
-        max-width: 100%;
-    }
+    /* min-width: 0 is crucial for flexbox so text truncates instead of pushing the box wider */
+    .text-column { flex: 1; min-width: 0; word-wrap: break-word; } 
     
-    .text-column { 
-        flex: 1; min-width: 0; 
-        max-width: 100%;
-    } 
-    
-    .img-column img { 
-        width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; 
-        max-width: 100%; 
-    }
+    .img-column img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; max-width: 100%; }
     
     @media (max-width: 768px) {
         .card-content { flex-direction: column-reverse; align-items: stretch; }
@@ -228,13 +200,14 @@ st.markdown("""
         display: block; font-family: 'Merriweather', serif; font-size: 24px; 
         font-weight: 700; color: #E0E0E0; text-decoration: none; line-height: 1.4;
         transition: color 0.2s; letter-spacing: -0.3px; margin-bottom: 8px;
+        word-wrap: break-word; /* Forces long unbroken text to wrap */
     }
     .card-container:hover .headline { color: #60A5FA; }
     
-    .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; max-width: 100%; }
+    .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
     
     /* CHIP STYLES */
-    .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; white-space: normal; text-align: center; }
+    .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
     .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
     .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
@@ -254,7 +227,7 @@ st.markdown("""
     .chip-overflow .tooltip-text {
         visibility: hidden;
         width: max-content;
-        max-width: 150px; /* Reduced width to stay on screen */
+        max-width: 200px; /* Don't let the tooltip get too wide on mobile */
         background-color: #1F2937;
         color: #F3F4F6;
         text-align: center;
@@ -264,7 +237,7 @@ st.markdown("""
         z-index: 10;
         bottom: 135%;
         left: 50%;
-        transform: translateX(-50%);
+        transform: translateX(-50%); /* Better centering method that avoids edge overflow */
         opacity: 0;
         transition: opacity 0.2s;
         font-size: 11px;
@@ -291,7 +264,7 @@ st.markdown("""
         opacity: 1;
     }
 
-    .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
+    .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; word-wrap: break-word; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
 """, unsafe_allow_html=True)
