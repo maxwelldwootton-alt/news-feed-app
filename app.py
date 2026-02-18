@@ -19,7 +19,6 @@ SOURCE_MAPPING = {
     'al-jazeera-english': 'Al Jazeera'
 }
 
-# Reverse Mapping (Display Name -> Slug)
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 
 # Default neutral list
@@ -27,7 +26,7 @@ NEUTRAL_SOURCES = [
     'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
 ]
 
-# --- DEFINING TOPICS (Moved up so we can use them in Session State Init) ---
+# Define Topics
 SUGGESTED_TOPICS = [
     "Technology", 
     "Artificial Intelligence", 
@@ -41,8 +40,7 @@ SUGGESTED_TOPICS = [
 
 # --- INITIALIZE SESSION STATE ---
 if 'applied_topic' not in st.session_state:
-    # DEFAULT: Join all topics with " OR " for the initial load
-    # We wrap multi-word topics in quotes for precision
+    # Default: Select ALL topics joined by OR
     formatted_defaults = [f'"{t}"' for t in SUGGESTED_TOPICS]
     st.session_state.applied_topic = " OR ".join(formatted_defaults)
     
@@ -52,8 +50,6 @@ if 'applied_topic' not in st.session_state:
     st.session_state.applied_emotional = True
 
 # --- FUNCTIONS ---
-
-# OPTIMIZATION: Cache set to 1 hour (3600s) to save API calls.
 @st.cache_data(ttl=3600, show_spinner=False) 
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
@@ -68,7 +64,7 @@ def fetch_news(query, sources, from_date, to_date, api_key):
         'to': to_date.strftime('%Y-%m-%d'),
         'language': 'en',
         'sortBy': 'publishedAt',
-        'pageSize': 100,  # ALWAYS fetch max (100) to get the most value per credit
+        'pageSize': 100,
         'apiKey': api_key
     }
     try:
@@ -80,9 +76,8 @@ def fetch_news(query, sources, from_date, to_date, api_key):
             valid_articles = [a for a in articles if a['title'] != "[Removed]"]
             valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
             return valid_articles
-            
         return []
-    except Exception as e:
+    except Exception:
         return []
 
 def analyze_sentiment(text):
@@ -95,7 +90,6 @@ st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 # --- CSS STYLING ---
 st.markdown("""
     <style>
-    /* IMPORT GOOGLE FONTS */
     @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
 
     #MainMenu {visibility: hidden;}
@@ -119,250 +113,161 @@ st.markdown("""
         transform: translateY(-3px); 
     }
 
-    /* --- FLEX LAYOUT (DESKTOP DEFAULT) --- */
+    /* --- FLEX LAYOUT --- */
     .card-content {
         display: flex;
         justify-content: space-between;
-        align-items: center; /* Vertically center image on desktop */
+        align-items: center; 
         gap: 20px;
     }
-
-    .text-column {
-        flex: 1; 
-        min-width: 0; 
-    }
-
-    /* DESKTOP IMAGE STYLE */
+    .text-column { flex: 1; min-width: 0; }
     .img-column img {
-        width: 120px;
-        height: 120px;
-        object-fit: cover;
-        border-radius: 8px;
-        border: 1px solid #444;
-        flex-shrink: 0;
-        display: block; 
+        width: 120px; height: 120px; object-fit: cover;
+        border-radius: 8px; border: 1px solid #444;
+        flex-shrink: 0; display: block; 
     }
 
-    /* --- RESPONSIVE MOBILE LAYOUT --- */
-    /* Triggers when screen is smaller than 768px (Tablets/Phones) */
+    /* --- MOBILE --- */
     @media (max-width: 768px) {
-        .card-content {
-            flex-direction: column-reverse; /* Stacks image ON TOP of text */
-            align-items: stretch;
-        }
-        
-        .img-column {
-            width: 100%;
-            margin-bottom: 16px; /* Space between image and headline */
-        }
-        
-        .img-column img {
-            width: 100%;       /* Full width banner */
-            height: 180px;     /* Taller cinematic height */
-            border-radius: 8px;
-        }
-        
-        .headline {
-            font-size: 20px; /* Slightly smaller text for mobile density */
-        }
+        .card-content { flex-direction: column-reverse; align-items: stretch; }
+        .img-column { width: 100%; margin-bottom: 16px; }
+        .img-column img { width: 100%; height: 180px; }
+        .headline { font-size: 20px; }
     }
     
-    /* Headline Styling */
+    /* Headline */
     .headline { 
-        display: block; 
-        font-family: 'Merriweather', serif; 
-        font-size: 24px; 
-        font-weight: 700; 
-        color: #E0E0E0; 
-        text-decoration: none; 
-        line-height: 1.4;
-        transition: color 0.2s;
-        letter-spacing: -0.3px;
-        margin-bottom: 8px;
+        display: block; font-family: 'Merriweather', serif; 
+        font-size: 24px; font-weight: 700; color: #E0E0E0; 
+        text-decoration: none; line-height: 1.4;
+        transition: color 0.2s; letter-spacing: -0.3px; margin-bottom: 8px;
     }
+    .card-container:hover .headline { color: #60A5FA; }
     
-    .card-container:hover .headline {
-         color: #60A5FA; 
-    }
-    
-    /* Metadata Container */
+    /* Metadata */
     .metadata { 
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 10px;
-        font-family: 'Inter', sans-serif; 
-        font-size: 12px; 
-        color: #A0A0A0; 
+        display: flex; align-items: center; flex-wrap: wrap;
+        gap: 10px; font-family: 'Inter', sans-serif; 
+        font-size: 12px; color: #A0A0A0; 
     }
     
-    /* CHIP STYLES */
+    /* Chips */
     .chip {
-        display: inline-flex;
-        align-items: center;
-        padding: 4px 10px;
-        border-radius: 6px; 
-        font-size: 11px;
-        font-family: 'Inter', sans-serif;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: white;
+        display: inline-flex; align-items: center; padding: 4px 10px;
+        border-radius: 6px; font-size: 11px;
+        font-family: 'Inter', sans-serif; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.5px; color: white;
     }
-    
-    .chip-source {
-        background-color: #374151; 
-        color: #E5E7EB;
-        border: 1px solid #4B5563;
-    }
-    
-    .chip-neutral {
-        background-color: #059669; 
-        border: 1px solid #10B981;
-    }
-    
-    .chip-emotional {
-        background-color: #DC2626; 
-        border: 1px solid #EF4444;
-    }
+    .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
+    .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
+    .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
 
-    /* Description Text */
+    /* Description */
     .description-text {
-        font-family: 'Inter', sans-serif;
-        font-size: 15px;
-        margin-top: 14px;
-        color: #D1D5DB;
-        line-height: 1.6;
-        font-weight: 300;
+        font-family: 'Inter', sans-serif; font-size: 15px;
+        margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300;
     }
     
-    /* Sidebar Button Styling */
-    section[data-testid="stSidebar"] .stButton button {
-        width: 100%;
-        border-radius: 5px;
-        transition: background-color 0.3s ease;
-        font-family: 'Inter', sans-serif;
+    /* Update Button Styling */
+    .stButton button {
+        width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif;
     }
     </style>
 """, unsafe_allow_html=True)
 
+# --- HEADER & CONTROLS ---
+
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
 
-# --- SIDEBAR CONTROLS ---
-
-with st.sidebar:
-    st.header("Filters")
+# 1. TOPIC SELECTION (Moved to Main Page)
+if "topic_pills" not in st.session_state:
+    st.session_state.topic_pills = SUGGESTED_TOPICS
     
-    # --- 1. TOPIC SELECTION ---
-    # Default: Select ALL topics
-    if "topic_pills" not in st.session_state:
-        st.session_state.topic_pills = SUGGESTED_TOPICS
-        
-    if "custom_search" not in st.session_state:
+if "custom_search" not in st.session_state:
+    st.session_state.custom_search = ""
+
+def on_pill_change():
+    if st.session_state.topic_pills:
         st.session_state.custom_search = ""
-
-    def on_pill_change():
-        if st.session_state.topic_pills:
-            st.session_state.custom_search = ""
-            
-    def on_text_change():
-        if st.session_state.custom_search:
-            st.session_state.topic_pills = []
-
-    st.pills(
-        "Trending now (Multi-select):",
-        options=SUGGESTED_TOPICS,
-        key="topic_pills",
-        on_change=on_pill_change,
-        selection_mode="multi" # UPDATED: Allows selecting multiple/all
-    )
-
-    st.text_input(
-        "Or search custom topic:", 
-        key="custom_search",
-        on_change=on_text_change
-    )
-    
-    # LOGIC: Build the Query String
+        
+def on_text_change():
     if st.session_state.custom_search:
-        current_topic = st.session_state.custom_search
-    elif st.session_state.topic_pills:
-        # Join topics with " OR " so API searches for ANY of them
-        # Wrap multi-word topics in quotes (e.g., "Artificial Intelligence")
-        formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.topic_pills]
-        current_topic = " OR ".join(formatted_topics)
-    else:
-        current_topic = "General" # Fallback if user unchecks everything
-    
-    st.divider()
+        st.session_state.topic_pills = []
 
-    # --- 2. TIMEFRAME ---
+st.pills(
+    "Trending now:",
+    options=SUGGESTED_TOPICS,
+    key="topic_pills",
+    on_change=on_pill_change,
+    selection_mode="multi"
+)
+
+st.text_input(
+    "Or search custom topic:", 
+    key="custom_search",
+    on_change=on_text_change,
+    placeholder="e.g. Nvidia, Bitcoin, Election..."
+)
+
+# Calculate Topic String
+if st.session_state.custom_search:
+    current_topic = st.session_state.custom_search
+elif st.session_state.topic_pills:
+    formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.topic_pills]
+    current_topic = " OR ".join(formatted_topics)
+else:
+    current_topic = "General"
+
+# --- SIDEBAR (Advanced Filters Only) ---
+with st.sidebar:
+    st.header("Advanced Filters")
+    
+    # 2. TIMEFRAME
     st.subheader("Timeframe")
     today = date.today()
-    current_date_range = st.date_input(
-        "Select Date Range",
-        value=(today - timedelta(days=7), today),
-        min_value=today - timedelta(days=29),
-        max_value=today,
-        format="MM/DD/YYYY"
-    )
+    current_date_range = st.date_input("Select Date Range", value=(today - timedelta(days=7), today), min_value=today - timedelta(days=29), max_value=today, format="MM/DD/YYYY")
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
     else:
         current_start, current_end = today, today
 
-    # --- 3. SOURCES ---
+    # 3. SOURCES
     st.subheader("Trusted Sources")
     display_names = list(SOURCE_MAPPING.values())
-    
-    selected_display_names = st.pills(
-        "Toggle sources:",
-        options=display_names,
-        default=display_names,
-        selection_mode="multi"
-    )
+    selected_display_names = st.pills("Toggle sources:", options=display_names, default=display_names, selection_mode="multi")
     
     if selected_display_names:
         current_sources = [REVERSE_MAPPING[name] for name in selected_display_names]
     else:
         current_sources = []
     
-    # --- 4. SENSATIONALISM FILTER ---
+    # 4. SENSATIONALISM
     st.subheader("Sensationalism Filter")
     current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
-    
-    # --- DETECT CHANGES ---
-    has_changes = False
-    # Note: applied_topic is now a long string like "Tech OR Crypto", so we compare strings
-    if (current_topic != st.session_state.applied_topic or
-        current_start != st.session_state.applied_start_date or
-        current_end != st.session_state.applied_end_date or
-        set(current_sources) != set(st.session_state.applied_sources) or
-        current_emotional != st.session_state.applied_emotional):
-        has_changes = True
 
-    # --- REFRESH BUTTON ---
-    if st.button("Refresh Feed"):
-        st.session_state.applied_topic = current_topic
-        st.session_state.applied_start_date = current_start
-        st.session_state.applied_end_date = current_end
-        st.session_state.applied_sources = current_sources
-        st.session_state.applied_emotional = current_emotional
-        st.rerun()
+# --- DETECT CHANGES ---
+has_changes = False
+if (current_topic != st.session_state.applied_topic or
+    current_start != st.session_state.applied_start_date or
+    current_end != st.session_state.applied_end_date or
+    set(current_sources) != set(st.session_state.applied_sources) or
+    current_emotional != st.session_state.applied_emotional):
+    has_changes = True
 
-    if has_changes:
-        st.markdown("""
-            <style>
-            section[data-testid="stSidebar"] .stButton button {
-                background-color: #3B82F6 !important;
-                color: white !important;
-                border: 1px solid #2563EB !important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
+# --- UPDATE BUTTON (Main Feed) ---
+# We put this here so it's right after the search input
+if st.button("Update Feed", type="primary" if has_changes else "secondary"):
+    st.session_state.applied_topic = current_topic
+    st.session_state.applied_start_date = current_start
+    st.session_state.applied_end_date = current_end
+    st.session_state.applied_sources = current_sources
+    st.session_state.applied_emotional = current_emotional
+    st.rerun()
 
-# --- MAIN FEED ---
+st.divider()
+
+# --- MAIN FEED RENDER ---
 
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key in the code configuration.")
@@ -388,12 +293,10 @@ else:
                 url = article['url']
                 image_url = article.get('urlToImage')
                 
-                # Date Formatting
                 iso_date = article['publishedAt'][:10]
                 date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
                 published_formatted = date_obj.strftime('%b %d, %Y')
                 
-                # Source Formatting
                 api_source_name = article['source']['name']
                 api_source_id = article['source']['id'] 
                 display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
@@ -408,20 +311,13 @@ else:
                 
                 count += 1
                 
-                # Determine Chips
                 source_chip = f'<span class="chip chip-source">{display_source}</span>'
+                sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if is_emotional else '<span class="chip chip-neutral">✅ Objective</span>'
                 
-                if is_emotional:
-                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>'
-                else:
-                    sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
-                
-                # Build Image HTML
                 img_html = ""
                 if image_url:
                     img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>'
                 
-                # HTML Card Structure
                 st.markdown(f"""
                 <div class="card-container">
                     <div class="card-content">
