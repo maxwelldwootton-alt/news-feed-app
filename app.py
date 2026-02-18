@@ -333,4 +333,34 @@ else:
                         tooltip_text = ", ".join(hidden_tags)
                         tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
                     
-                    iso_date = article.get
+                    iso_date = article.get('publishedAt', '')[:10]
+                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
+                    
+                    api_source_name = article.get('source', {}).get('name', 'Unknown')
+                    api_source_id = article.get('source', {}).get('id', '') 
+                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+                    
+                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
+                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
+                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
+                    
+                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
+                    
+            # --- TAB 2: AI OVERVIEW ---
+            with tab_ai:
+                st.header("✨ AI Overview")
+                
+                if not processed_articles:
+                    st.info("No articles available to summarize.")
+                else:
+                    prompt_lines = []
+                    for a in processed_articles[:30]:
+                        cat_string = ", ".join(a['computed_tags'][:2])
+                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {a.get('title')} | Desc: {a.get('description')}")
+                    
+                    prompt_data_string = "\n".join(prompt_lines)
+                    
+                    if st.button("Generate Summary", type="primary"):
+                        with st.spinner("Gemini is reading the news..."):
+                            summary_markdown = get_gemini_summary(prompt_data_string)
+                            st.markdown(summary_markdown)
