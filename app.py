@@ -136,7 +136,6 @@ def add_custom_topic():
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
-        # Explicit list reassignment forces Streamlit to update the widget UI perfectly
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
         if new_topic not in st.session_state.active_custom:
@@ -236,14 +235,28 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
+
 # --- STRICT ACTIVE QUERY BUILDER ---
-# We ONLY query the API for chips that are currently checked. 
+# We build the API query using the rich synonyms from TOPIC_KEYWORDS 
+# so the API fetches exactly what the local chips are looking for!
 active_topics = st.session_state.active_default + st.session_state.active_custom
 query_parts = []
-for t in active_topics:
-    part = f'"{t}"' if " " in t else t
-    if len(" OR ".join(query_parts + [part])) < 450: 
-        query_parts.append(part)
+
+for topic in active_topics:
+    # Get the keyword list if it's a default topic, otherwise just use the custom topic name
+    keywords = TOPIC_KEYWORDS.get(topic, [topic])
+    
+    # Ensure the actual topic name is included in the search
+    if topic.lower() not in [k.lower() for k in keywords]:
+        keywords = [topic] + keywords
+        
+    for k in keywords:
+        part = f'"{k}"' if " " in k else k
+        
+        # Prevent duplicates and keep the total query length under NewsAPI's 450 char limit
+        if part not in query_parts:
+            if len(" OR ".join(query_parts + [part])) < 450: 
+                query_parts.append(part)
 
 api_query = " OR ".join(query_parts) if query_parts else "General"
 
@@ -291,7 +304,6 @@ else:
     else:
         with st.spinner("Loading wire..."):
             
-            # The API call is now completely synced with your UI selections
             raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             
             processed_articles = []
@@ -305,7 +317,7 @@ else:
                 
                 article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
                 
-                # Because we strictly query the API, if the API returned it, it belongs to an active chip.
+                # Trust the API fallback (safer now that query synonyms match local keywords)
                 if not article_tags and active_topics:
                     article_tags = [active_topics[0]]
                 
