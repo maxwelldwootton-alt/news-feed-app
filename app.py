@@ -171,40 +171,39 @@ st.markdown("""
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
     
-    /* TOOLTIP CONTAINER (The +N Chip) */
+    /* OVERFLOW CHIP with TOOLTIP */
     .chip-overflow { 
         background-color: transparent; 
         color: #9CA3AF; 
         border: 1px dashed #4B5563;
         cursor: default;
-        position: relative; /* Anchor for the absolute popup */
+        position: relative;
         display: inline-block;
     }
 
-    /* THE POPUP TEXT (Hidden by default) */
+    /* TOOLTIP POPUP TEXT */
     .chip-overflow .tooltip-text {
         visibility: hidden;
         width: 140px;
-        background-color: #1F2937; /* Dark Gray bg */
+        background-color: #1F2937;
         color: #F3F4F6;
         text-align: center;
         border-radius: 6px;
         padding: 6px 8px;
         position: absolute;
         z-index: 10;
-        bottom: 135%; /* Position above */
+        bottom: 135%;
         left: 50%;
-        margin-left: -70px; /* Center it */
+        margin-left: -70px;
         opacity: 0;
         transition: opacity 0.2s;
         font-size: 11px;
         font-weight: 400;
         border: 1px solid #374151;
         box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        pointer-events: none; /* Let mouse pass through */
+        pointer-events: none;
     }
 
-    /* TRIANGLE ARROW for Tooltip */
     .chip-overflow .tooltip-text::after {
         content: "";
         position: absolute;
@@ -216,7 +215,6 @@ st.markdown("""
         border-color: #1F2937 transparent transparent transparent;
     }
 
-    /* SHOW TOOLTIP ON HOVER */
     .chip-overflow:hover .tooltip-text {
         visibility: visible;
         opacity: 1;
@@ -313,13 +311,11 @@ else:
                 image_url = article.get('urlToImage')
                 description = article['description'] or ""
                 
-                # --- AUTO-TAGGING & SORTING ---
+                # --- TAGGING ---
                 article_tags = classify_article(title + " " + description, st.session_state.active_default, st.session_state.active_custom)
-                
                 priority_list = st.session_state.active_custom + st.session_state.active_default
                 article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
-                # --- TAG LOGIC WITH CSS POPUP ---
                 tags_html = ""
                 visible_tags = article_tags[:2]
                 hidden_tags = article_tags[2:]
@@ -330,13 +326,8 @@ else:
                 
                 if overflow_count > 0:
                     tooltip_text = ", ".join(hidden_tags)
-                    # Note: We now inject the tooltip-text span INSIDE the chip-overflow span
-                    tags_html += f'''
-                    <span class="chip chip-overflow">
-                        +{overflow_count}
-                        <span class="tooltip-text">{tooltip_text}</span>
-                    </span>
-                    '''
+                    # FIXED: Using single line concatenation to avoid indentation issues
+                    tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
                 
                 # --- SENTIMENT ---
                 subjectivity, polarity = analyze_sentiment(title + " " + description)
@@ -357,27 +348,8 @@ else:
                 sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if is_emotional else '<span class="chip chip-neutral">✅ Objective</span>'
                 img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
                 
-                st.markdown(f"""
-                <div class="card-container">
-                    <div class="card-content">
-                        <div class="text-column">
-                            <a href="{url}" target="_blank" class="headline">{title}</a>
-                            <div class="metadata">
-                                {source_chip}
-                                {tags_html}
-                                <span style="color: #6B7280; font-weight: bold;">•</span>
-                                {sentiment_chip}
-                                <span style="color: #6B7280; font-weight: bold;">•</span>
-                                <span>{published_formatted}</span>
-                            </div>
-                            <p class="description-text">
-                                {description}
-                            </p>
-                        </div>
-                        {img_html}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                # FIXED: FLATTENED HTML STRING TO REMOVE INDENTATION ERRORS
+                st.markdown(f"""<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>""", unsafe_allow_html=True)
                 
             if count == 0 and articles:
                 st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
