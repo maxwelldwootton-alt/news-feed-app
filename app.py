@@ -6,6 +6,19 @@ from datetime import datetime, timedelta, date
 # --- CONFIGURATION ---
 API_KEY = 'c85bd651b9c24f97918f8c85ddc4a36f' 
 
+# Map the API 'slugs' to clean Display Names
+SOURCE_MAPPING = {
+    'reuters': 'Reuters',
+    'associated-press': 'Associated Press',
+    'bloomberg': 'Bloomberg',
+    'axios': 'Axios',
+    'politico': 'Politico',
+    'the-verge': 'The Verge',
+    'bbc-news': 'BBC News',
+    'al-jazeera-english': 'Al Jazeera'
+}
+
+# Define the default neutral list using slugs
 NEUTRAL_SOURCES = [
     'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
 ]
@@ -15,6 +28,7 @@ if 'applied_topic' not in st.session_state:
     st.session_state.applied_topic = "Technology"
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
     st.session_state.applied_end_date = date.today()
+    # Default selection includes neutrals + a few others
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
@@ -86,7 +100,7 @@ with st.sidebar:
         value=(today - timedelta(days=7), today),
         min_value=today - timedelta(days=29),
         max_value=today,
-        format="MM/DD/YYYY"  # Updates the picker format
+        format="MM/DD/YYYY"
     )
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
@@ -94,8 +108,15 @@ with st.sidebar:
         current_start, current_end = today, today
 
     st.subheader("Trusted Sources")
-    all_options = ['reuters', 'associated-press', 'bloomberg', 'the-verge', 'bbc-news', 'al-jazeera-english']
-    current_sources = st.multiselect("Select Sources:", options=all_options, default=all_options)
+    all_options = list(SOURCE_MAPPING.keys()) # We use the keys (slugs) as the actual values
+    
+    current_sources = st.multiselect(
+        "Select Sources:",
+        options=all_options,
+        default=all_options,
+        # format_func converts the slug 'reuters' to 'Reuters' in the dropdown
+        format_func=lambda x: SOURCE_MAPPING.get(x, x)
+    )
     
     st.subheader("Sensationalism Filter")
     current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
@@ -151,14 +172,20 @@ else:
             title = article['title']
             if title == "[Removed]": continue
             
-            # --- DATE FORMATTING CHANGE ---
-            # 1. Slice to get YYYY-MM-DD
-            # 2. Parse into Date Object
-            # 3. Format as MM/DD/YYYY
+            # --- DATE FORMATTING ---
             iso_date = article['publishedAt'][:10]
             date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
             published_formatted = date_obj.strftime('%m/%d/%Y')
             
+            # --- SOURCE FORMATTING ---
+            # Try to match the API source name to our polished list
+            # The API returns source names like "Associated Press", but we want to be safe
+            api_source_name = article['source']['name']
+            
+            # If the API source ID (slug) is available, use our mapping for consistency
+            api_source_id = article['source']['id'] 
+            display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+
             description = article['description']
             subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
             is_emotional = subjectivity > 0.5
@@ -175,7 +202,7 @@ else:
                 <a href="{article['url']}" target="_blank" class="headline">{title}</a>
                 <br><br>
                 <div class="metadata">
-                    <b>{article['source']['name']}</b> | {published_formatted} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
+                    <b>{display_source}</b> | {published_formatted} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
                 </div>
                 <p style="font-family: Arial; font-size: 14px; margin-top: 10px; color: #34495e;">
                     {description if description else ''}
