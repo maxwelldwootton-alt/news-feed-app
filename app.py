@@ -239,7 +239,7 @@ with st.sidebar:
     st.header("Filters")
     
     # --- 1. TOPIC SELECTION ---
-    SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Nuclear", "Space Exploration"]
+    SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Nuclear", "Space Exploration","Epstein Files"]
 
     if "topic_pills" not in st.session_state:
         st.session_state.topic_pills = "Technology"
