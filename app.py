@@ -24,8 +24,7 @@ DEFAULT_TOPICS = [
     "Politics", "Epstein Files", "Nuclear", "Space Exploration"
 ]
 
-# --- IMPROVED KEYWORD MATCHING ENGINE ---
-# I have added many more related terms to catch headlines that don't say the exact topic name
+# --- KEYWORD MATCHING ENGINE ---
 TOPIC_KEYWORDS = {
     "Technology": ["tech", "software", "hardware", "apple", "google", "microsoft", "internet", "device", "silicon", "meta", "amazon", "server", "cyber", "data", "app", "mobile", "ios", "android"],
     "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural", "nvidia", "altman", "chatbot", "generative"],
@@ -95,13 +94,10 @@ def classify_article(text, active_defaults, active_customs):
     # 1. Check Default Topics (using expanded keyword dictionary)
     for topic in active_defaults:
         keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
-        # Add topic name itself to search list
         if topic.lower() not in keywords:
             keywords.append(topic.lower())
             
         for k in keywords:
-            # We use ' ' + k + ' ' checks or simple substring checks
-            # Simple substring is better for news API matching behavior
             if k in text_lower:
                 found_tags.append(topic)
                 break 
@@ -111,11 +107,10 @@ def classify_article(text, active_defaults, active_customs):
         if topic.lower() in text_lower:
             found_tags.append(topic)
             
-    # 3. FALLBACK: If no tags found, label it 'General' so the UI isn't empty
+    # 3. FALLBACK
     if not found_tags:
         found_tags.append("General")
         
-    # Deduplicate
     return list(dict.fromkeys(found_tags))
 
 # --- CALLBACKS ---
@@ -175,6 +170,13 @@ st.markdown("""
     .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
+    
+    /* NEW: Overflow Chip Style (+2) */
+    .chip-overflow { 
+        background-color: transparent; 
+        color: #9CA3AF; /* Gray text */
+        border: 1px dashed #4B5563; /* Dashed Gray Border */
+    }
 
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
@@ -267,13 +269,25 @@ else:
                 image_url = article.get('urlToImage')
                 description = article['description'] or ""
                 
-                # --- AUTO-TAGGING ---
-                # Now uses expanded keywords + fallback "General"
+                # --- AUTO-TAGGING & SORTING ---
                 article_tags = classify_article(title + " " + description, st.session_state.active_default, st.session_state.active_custom)
                 
+                # Create Priority List: Active Custom > Active Default > General
+                priority_list = st.session_state.active_custom + st.session_state.active_default
+                
+                # Sort tags based on priority list
+                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                
+                # Limit to 2 tags + Overflow
                 tags_html = ""
-                for tag in article_tags:
+                visible_tags = article_tags[:2]
+                overflow_count = len(article_tags) - 2
+                
+                for tag in visible_tags:
                     tags_html += f'<span class="chip chip-category">{tag}</span>'
+                
+                if overflow_count > 0:
+                    tags_html += f'<span class="chip chip-overflow">+{overflow_count}</span>'
                 
                 # --- SENTIMENT ---
                 subjectivity, polarity = analyze_sentiment(title + " " + description)
