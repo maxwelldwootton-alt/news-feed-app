@@ -8,7 +8,6 @@ import google.generativeai as genai
 # 🔒 Pulling keys securely from Streamlit Secrets
 NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-#
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -35,12 +34,12 @@ DEFAULT_TOPICS = [
 TOPIC_KEYWORDS = {
     "Technology": ["tech", "software", "hardware", "apple", "google", "microsoft", "internet", "device", "silicon", "meta", "amazon", "server", "cyber", "data", "app", "mobile", "ios", "android"],
     "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural", "nvidia", "altman", "chatbot", "generative"],
-    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "rate", "fed", "trading", "investor", "bull", "bear", "wall st", "ipo", "shares", "revenue", "profit", "quarterly"],
+    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "fed", "trading", "investor", "wall st", "ipo", "shares", "revenue", "profit", "quarterly"],
     "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "blockchain", "token", "coinbase", "binance", "wallet", "web3", "defi"],
-    "Politics": ["politics", "biden", "trump", "congress", "senate", "law", "election", "campaign", "white house", "democrat", "republican", "gop", "bill", "vote", "voter"],
-    "Epstein Files": ["epstein", "ghislaine", "maxwell", "document", "court", "list", "judge", "testimony", "deposition"],
-    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor", "plant", "energy", "radiation"],
-    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket", "launch", "satellite", "astronaut", "universe"]
+    "Politics": ["politics", "biden", "trump", "congress", "senate", "election", "campaign", "white house", "democrat", "republican", "gop", "voter"],
+    "Epstein Files": ["epstein", "ghislaine", "maxwell"],
+    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor"],
+    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket", "satellite", "astronaut", "universe"]
 }
 
 # --- INITIALIZE SESSION STATE ---
@@ -54,11 +53,9 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    # 🕒 CHANGED: Default exactly to yesterday's date
     yesterday = date.today() - timedelta(days=1)
     st.session_state.applied_start_date = yesterday
     st.session_state.applied_end_date = yesterday
-    
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
@@ -66,10 +63,8 @@ if 'applied_start_date' not in st.session_state:
 @st.cache_data(ttl=3600, show_spinner=False) 
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
-    
     if sources:
         sources.sort()
-        
     params = {
         'q': query if query else 'general',
         'sources': ','.join(sources),
@@ -97,6 +92,7 @@ def analyze_sentiment(text):
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
 def classify_article(text, active_defaults, active_customs):
+    """Scans text to find which ACTIVE topics match."""
     found_tags = []
     text_lower = text.lower()
     
@@ -113,9 +109,6 @@ def classify_article(text, active_defaults, active_customs):
         if topic.lower() in text_lower:
             found_tags.append(topic)
             
-    if not found_tags:
-        found_tags.append("General")
-        
     return list(dict.fromkeys(found_tags))
 
 @st.cache_data(show_spinner=False)
@@ -124,14 +117,14 @@ def get_gemini_summary(prompt_data_string):
         return "No articles available to summarize."
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview')
-        prompt = f"""You are a professional news briefing assistant. 
+        prompt = f'''You are a professional news briefing assistant. 
 I am providing you with a list of current news articles. Each article includes its assigned Categories, Title, and Description.
 Please provide a well-structured, easy-to-read summary of the news, grouping the insights by Category. 
 Keep it engaging, objective, and concise. Use markdown formatting (headers, bullet points) for readability.
 
 Here is the news data:
 {prompt_data_string}
-"""
+'''
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -152,7 +145,8 @@ def add_custom_topic():
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
 # --- CSS STYLING ---
-st.markdown("""
+# Using triple single-quotes here to prevent parsing errors
+st.markdown('''
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
     #MainMenu {visibility: hidden;}
@@ -215,7 +209,7 @@ st.markdown("""
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
@@ -241,19 +235,20 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-combined_selection = st.session_state.active_default + st.session_state.active_custom
-if combined_selection:
-    formatted_topics = [f'"{t}"' if " " in t else t for t in combined_selection]
-    api_query = " OR ".join(formatted_topics)
-else:
-    api_query = "General"
+# --- BUILD THE MASTER API QUERY ---
+all_query_topics = st.session_state.saved_custom_topics + DEFAULT_TOPICS
+query_parts = []
+for t in all_query_topics:
+    part = f'"{t}"' if " " in t else t
+    if len(" OR ".join(query_parts + [part])) < 400:
+        query_parts.append(part)
+
+api_query = " OR ".join(query_parts) if query_parts else "General"
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
-    
-    # 🕒 CHANGED: Default UI widget to Yesterday
     yesterday = today - timedelta(days=1)
     current_date_range = st.date_input(
         "Select Date Range", 
@@ -263,7 +258,6 @@ with st.sidebar:
         format="MM/DD/YYYY"
     )
     
-    # Handle the date tuple correctly (Streamlit returns a 1-length tuple if only one day is clicked)
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
     elif len(current_date_range) == 1:
@@ -284,14 +278,18 @@ with st.sidebar:
 
 st.divider()
 
-# --- MAIN APP BODY (TABS & PRE-PROCESSING) ---
+# --- MAIN APP BODY ---
 if not NEWS_API_KEY:
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
-    if not st.session_state.applied_sources:
+    combined_selection = st.session_state.active_default + st.session_state.active_custom
+    if not combined_selection:
+        st.info("👈 Please select at least one feed category above to view articles.")
+    elif not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
+            
             raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             
             processed_articles = []
@@ -303,13 +301,17 @@ else:
                 content = article.get('content') or ""
                 text_to_analyze = f"{title} {description} {content}"
                 
+                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                
+                if not article_tags:
+                    continue
+                
+                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                
                 subjectivity, polarity = analyze_sentiment(text_to_analyze)
                 is_emotional = subjectivity > 0.5
                 if current_emotional and is_emotional: 
                     continue 
-                
-                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
-                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
                 article['computed_tags'] = article_tags
                 article['is_emotional'] = is_emotional
@@ -321,7 +323,7 @@ else:
             with tab_feed:
                 if not processed_articles:
                     if raw_articles:
-                        st.warning("Articles were found, but all were hidden by the 'Sensationalism Filter'.")
+                        st.info("Articles were found, but none matched your exact selections or passed the Sensationalism filter.")
                     else:
                         st.info("No articles found matching these topics.")
                     
@@ -355,7 +357,8 @@ else:
                     sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
                     img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
                     
-                    st.markdown(f"""<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>""", unsafe_allow_html=True)
+                    # HTML card mapped properly to single-line injection
+                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                     
             # --- TAB 2: AI OVERVIEW ---
             with tab_ai:
