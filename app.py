@@ -20,22 +20,27 @@ SOURCE_MAPPING = {
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
-# --- TOPIC & KEYWORD MAPPING ---
-# We need this to "guess" which topic an article belongs to locally
-TOPIC_KEYWORDS = {
-    "Technology": ["tech", "technology", "software", "hardware", "silicon", "apple", "google", "microsoft", "internet"],
-    "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural"],
-    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "inflation", "fed", "rates"],
-    "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "coinbase", "blockchain", "nft"],
-    "Politics": ["politics", "congress", "senate", "biden", "trump", "white house", "election", "law"],
-    "Epstein Files": ["epstein", "ghislaine", "maxwell", "documents", "list", "court"],
-    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "plant", "energy"],
-    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "rocket", "orbit", "galaxy"]
-}
-
-SUGGESTED_TOPICS = list(TOPIC_KEYWORDS.keys())
+# --- TOPICS CONFIGURATION ---
+DEFAULT_TOPICS = [
+    "Technology", 
+    "Artificial Intelligence", 
+    "Stock Market", 
+    "Crypto", 
+    "Politics", 
+    "Epstein Files", 
+    "Nuclear", 
+    "Space Exploration"
+]
 
 # --- INITIALIZE SESSION STATE ---
+# We store 'custom_topics' separately so we know which ones can be removed
+if 'custom_topics' not in st.session_state:
+    st.session_state.custom_topics = []
+
+# This acts as the 'Master List' of what is currently checked in the UI
+if 'selected_topics' not in st.session_state:
+    st.session_state.selected_topics = DEFAULT_TOPICS.copy()
+
 if 'applied_start_date' not in st.session_state:
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
     st.session_state.applied_end_date = date.today()
@@ -75,37 +80,6 @@ def fetch_news(query, sources, from_date, to_date, api_key):
 def analyze_sentiment(text):
     blob = TextBlob(text)
     return blob.sentiment.subjectivity, blob.sentiment.polarity
-
-# --- LOCAL FILTERING FUNCTION ---
-def filter_articles_local(articles, selected_topics):
-    # If user selected EVERYTHING (or nothing, defaulting to all), return all
-    if not selected_topics or len(selected_topics) == len(SUGGESTED_TOPICS):
-        return articles
-        
-    filtered = []
-    for article in articles:
-        # Combine title and description for searching
-        text_content = (article['title'] + " " + (article['description'] or "")).lower()
-        
-        # Check if article matches ANY of the selected topics
-        match_found = False
-        for topic in selected_topics:
-            keywords = TOPIC_KEYWORDS.get(topic, [])
-            # Also check the topic name itself
-            if topic.lower() in text_content:
-                match_found = True
-                break
-            # Check associated keywords
-            for k in keywords:
-                if k in text_content:
-                    match_found = True
-                    break
-            if match_found: break
-        
-        if match_found:
-            filtered.append(article)
-            
-    return filtered
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
@@ -158,55 +132,59 @@ st.markdown("""
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
 
-# --- CONTROLS (MAIN PAGE) ---
-if "topic_pills" not in st.session_state:
-    st.session_state.topic_pills = SUGGESTED_TOPICS # Default: All Selected
-    
-if "custom_search" not in st.session_state:
-    st.session_state.custom_search = ""
+# --- SEARCH LOGIC ---
 
-def on_pill_change():
-    if st.session_state.topic_pills:
-        st.session_state.custom_search = ""
+# Callback to add new topics
+def add_custom_topic():
+    new_query = st.session_state.search_input.strip()
+    if new_query:
+        # 1. Add to Custom List (if not exist)
+        if new_query not in st.session_state.custom_topics:
+            st.session_state.custom_topics.append(new_query)
+        # 2. Add to Selected List (so it appears active immediately)
+        if new_query not in st.session_state.selected_topics:
+            st.session_state.selected_topics.append(new_query)
+    st.session_state.search_input = "" # Clear input
 
-def on_text_change():
-    if st.session_state.custom_search:
-        st.session_state.topic_pills = []
-
-# 1. TOPIC CHIPS
-selected_topics = st.pills(
-    "Trending now:",
-    options=SUGGESTED_TOPICS,
-    key="topic_pills",
-    on_change=on_pill_change,
-    selection_mode="multi"
-)
-
-# 2. SEARCH BAR
-custom_query = st.text_input(
-    "Or search custom topic:", 
-    key="custom_search",
-    on_change=on_text_change,
+# 1. SEARCH BAR
+st.text_input(
+    "Search to add a topic:", 
+    key="search_input",
+    on_change=add_custom_topic,
     placeholder="e.g. Nvidia, Bitcoin, Election..."
 )
 
-# --- QUERY LOGIC (The Smart Part) ---
-# We calculate two things:
-# 1. 'api_query': What we send to the NewsAPI (Broad, Catch-all)
-# 2. 'is_local_filtering': Whether we rely on Python to filter the results
+# 2. CHIP DISPLAY
+# Combine Default + Custom for the options list
+# We reverse custom_topics so the newest ones appear first, next to the defaults
+all_options = st.session_state.custom_topics + DEFAULT_TOPICS
 
-if custom_query:
-    # If user typed something specific, we MUST hit the API with that specific query
-    api_query = custom_query
-    is_local_filtering = False 
-else:
-    # If using chips, we ALWAYS ask API for ALL TOPICS combined.
-    # This ensures the API call parameters never change, so we hit the Cache 100% of the time.
-    formatted_topics = [f'"{t}"' if " " in t else t for t in SUGGESTED_TOPICS]
+st.pills(
+    "Active Feeds (Deselect to remove):",
+    options=all_options,
+    key="selected_topics", # This automatically binds to st.session_state.selected_topics
+    selection_mode="multi"
+)
+
+# 3. CLEANUP LOGIC (The "X" Behavior)
+# If a custom topic is in 'custom_topics' but NOT in 'selected_topics', 
+# it means the user clicked it to turn it off. We should remove it entirely.
+items_to_remove = [t for t in st.session_state.custom_topics if t not in st.session_state.selected_topics]
+
+if items_to_remove:
+    for t in items_to_remove:
+        st.session_state.custom_topics.remove(t)
+    st.rerun() # Force refresh so the chip disappears visually
+
+# --- QUERY BUILDING ---
+if st.session_state.selected_topics:
+    # Wrap multi-word topics in quotes for exact matching
+    formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.selected_topics]
     api_query = " OR ".join(formatted_topics)
-    is_local_filtering = True
+else:
+    api_query = "General" # Fallback
 
-# --- SIDEBAR (Settings that force API refresh) ---
+# --- SIDEBAR FILTERS ---
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
@@ -225,8 +203,6 @@ with st.sidebar:
     
     current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
 
-    # We need a button to force refresh DATE or SOURCES, 
-    # but NOT for chips (chips should be instant/cached)
     if st.button("Update Timeframe/Sources", type="primary"):
          st.session_state.applied_start_date = current_start
          st.session_state.applied_end_date = current_end
@@ -234,8 +210,9 @@ with st.sidebar:
          st.session_state.applied_emotional = current_emotional
          st.rerun()
 
-# --- MAIN FEED ---
 st.divider()
+
+# --- MAIN FEED ---
 
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key in the code configuration.")
@@ -244,8 +221,8 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
-            # 1. FETCH (This hits Cache if api_query hasn't changed)
-            raw_articles = fetch_news(
+            # FETCH (Auto-cached if query string matches previous calls)
+            articles = fetch_news(
                 api_query, 
                 st.session_state.applied_sources, 
                 st.session_state.applied_start_date, 
@@ -253,18 +230,11 @@ else:
                 API_KEY
             )
             
-            # 2. FILTER LOCALLY (If we are in Chips mode)
-            if is_local_filtering and raw_articles:
-                final_articles = filter_articles_local(raw_articles, selected_topics)
-            else:
-                final_articles = raw_articles
-
-            # 3. RENDER
             count = 0
-            if not final_articles:
-                st.info("No articles found matching your filters.")
+            if not articles:
+                st.info("No articles found matching these topics.")
                 
-            for article in final_articles:
+            for article in articles:
                 title = article['title']
                 url = article['url']
                 image_url = article.get('urlToImage')
@@ -282,8 +252,6 @@ else:
                 
                 is_emotional = subjectivity > 0.5
                 
-                # Check emotional filter
-                # We use the sidebar value directly here so it updates instantly
                 if current_emotional and is_emotional:
                     continue
                 
@@ -317,5 +285,5 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 
-            if count == 0 and final_articles:
-                st.warning("Articles were fetched, but all were filtered by the 'Sensationalism Filter'.")
+            if count == 0 and articles:
+                st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
