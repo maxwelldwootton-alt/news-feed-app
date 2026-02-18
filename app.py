@@ -74,17 +74,29 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Card Styles */
+    /* --- Card Container & Hover Effects --- */
     .card-container {
         background-color: #262730; 
         padding: 20px; 
-        border-radius: 10px; 
+        border-radius: 12px; /* Slightly rounder */
         margin-bottom: 20px; 
         border: 1px solid #363636;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        /* Smooth transition for hover effects */
+        transition: all 0.3s ease;
     }
     
+    /* THE HOVER STATE */
+    .card-container:hover {
+        background-color: #2E2F38; /* Slightly lighter background */
+        border-color: #3B82F6;     /* Subtle blue border highlight */
+        box-shadow: 0 8px 15px rgba(0,0,0,0.3); /* Deeper shadow for "lift" */
+        transform: translateY(-3px); /* Slight upward movement */
+    }
+    
+    /* Headline Styling */
     .headline { 
+        display: block; /* Makes the link fill more space */
         font-family: 'Georgia', serif; 
         font-size: 22px; 
         font-weight: bold; 
@@ -93,9 +105,14 @@ st.markdown("""
         line-height: 1.4;
         transition: color 0.2s;
     }
-    .headline:hover {
-        color: #60A5FA; 
+    # .headline:hover {
+    #    color: #60A5FA; 
+    # }
+    /* Make the whole card clickable-feeling by changing cursor on hover */
+    .card-container:hover .headline {
+         color: #60A5FA; /* Highlight title on card hover */
     }
+
     
     /* Metadata Container */
     .metadata { 
@@ -319,9 +336,10 @@ else:
                     sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
                 
                 # HTML Card
+                # Note: We wrap the headline in a div that stretches so the click target is bigger
                 st.markdown(f"""
-                <div class="card-container">
-                    <a href="{article['url']}" target="_blank" class="headline">{title}</a>
+                <div class="card-container" onclick="window.open('{article['url']}', '_blank');" style="cursor: pointer;">
+                    <span class="headline">{title}</span>
                     <div class="metadata">
                         {source_chip}
                         <span style="color: #6B7280; font-weight: bold;">•</span>
