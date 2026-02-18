@@ -3,18 +3,6 @@ import requests
 from textblob import TextBlob
 from datetime import datetime, timedelta, date
 
-# --- 1. INITIALIZE SIDEBAR STATE (Must be before set_page_config) ---
-if 'sidebar_state' not in st.session_state:
-    st.session_state.sidebar_state = 'expanded'
-
-# --- APP CONFIGURATION ---
-st.set_page_config(
-    page_title="The Wire", 
-    page_icon="📰", 
-    layout="centered",
-    initial_sidebar_state=st.session_state.sidebar_state # <--- Dynamic State
-)
-
 # --- CONFIGURATION ---
 # ⚠️ REPLACE THIS WITH YOUR ACTUAL KEY OR USE st.secrets["NEWS_API_KEY"]
 API_KEY = '68bf6222804f431d9f3697e73d759099' 
@@ -85,6 +73,9 @@ def analyze_sentiment(text):
     blob = TextBlob(text)
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
+# --- APP CONFIGURATION ---
+st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
+
 # --- CSS STYLING ---
 st.markdown("""
     <style>
@@ -116,7 +107,7 @@ st.markdown("""
     .card-content {
         display: flex;
         justify-content: space-between;
-        align-items: center; 
+        align-items: center; /* Vertically center image on desktop */
         gap: 20px;
     }
 
@@ -137,6 +128,7 @@ st.markdown("""
     }
 
     /* --- RESPONSIVE MOBILE LAYOUT --- */
+    /* Triggers when screen is smaller than 768px (Tablets/Phones) */
     @media (max-width: 768px) {
         .card-content {
             flex-direction: column-reverse; /* Stacks image ON TOP of text */
@@ -145,17 +137,17 @@ st.markdown("""
         
         .img-column {
             width: 100%;
-            margin-bottom: 16px; 
+            margin-bottom: 16px; /* Space between image and headline */
         }
         
         .img-column img {
-            width: 100%;       
-            height: 180px;     
+            width: 100%;       /* Full width banner */
+            height: 180px;     /* Taller cinematic height */
             border-radius: 8px;
         }
         
         .headline {
-            font-size: 20px; 
+            font-size: 20px; /* Slightly smaller text for mobile density */
         }
     }
     
@@ -336,7 +328,6 @@ with st.sidebar:
         st.session_state.applied_end_date = current_end
         st.session_state.applied_sources = current_sources
         st.session_state.applied_emotional = current_emotional
-        st.session_state.sidebar_state = 'collapsed' # <--- Hide Sidebar on Click
         st.rerun()
 
     if has_changes:
