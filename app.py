@@ -161,33 +161,39 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* 🛑 THE ULTIMATE MOBILE HORIZONTAL SCROLL FIX 🛑 */
-    html, body, .stApp, [data-testid="stAppViewContainer"], .main .block-container {
-        max-width: 100vw !important;
-        overflow-x: hidden !important;
+    /* 1. Global Safe Word-Wrap (Prevents long URLs from pushing the screen wide) */
+    * {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
-    * { 
-        box-sizing: border-box !important; 
+    /* 2. Hide horizontal scrollbar safely on the main container */
+    .block-container {
+        overflow-x: hidden;
     }
-    
+
     /* Card Styles */
     .card-container {
         background-color: #262730; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; border: 1px solid #363636;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: all 0.3s ease;
-        max-width: 100%; /* Prevents card from pushing past the screen */
+        
+        /* Box sizing prevents padding from adding to the 100% width */
+        width: 100%;
+        box-sizing: border-box;
+        overflow: hidden; /* Traps anything trying to spill out horizontally */
     }
     .card-container:hover {
         background-color: #2E2F38; border-color: #3B82F6;     
         box-shadow: 0 8px 15px rgba(0,0,0,0.3); transform: translateY(-3px); 
     }
+    
     .card-content { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
     
-    /* min-width: 0 is crucial for flexbox so text truncates instead of pushing the box wider */
-    .text-column { flex: 1; min-width: 0; word-wrap: break-word; } 
+    /* min-width: 0 forces flexbox to allow text truncation/wrapping */
+    .text-column { flex: 1; min-width: 0; } 
     
-    .img-column img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; max-width: 100%; }
+    .img-column img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #444; flex-shrink: 0; display: block; }
     
     @media (max-width: 768px) {
         .card-content { flex-direction: column-reverse; align-items: stretch; }
@@ -200,7 +206,6 @@ st.markdown("""
         display: block; font-family: 'Merriweather', serif; font-size: 24px; 
         font-weight: 700; color: #E0E0E0; text-decoration: none; line-height: 1.4;
         transition: color 0.2s; letter-spacing: -0.3px; margin-bottom: 8px;
-        word-wrap: break-word; /* Forces long unbroken text to wrap */
     }
     .card-container:hover .headline { color: #60A5FA; }
     
@@ -226,8 +231,7 @@ st.markdown("""
     /* TOOLTIP POPUP TEXT */
     .chip-overflow .tooltip-text {
         visibility: hidden;
-        width: max-content;
-        max-width: 200px; /* Don't let the tooltip get too wide on mobile */
+        width: 140px;
         background-color: #1F2937;
         color: #F3F4F6;
         text-align: center;
@@ -236,8 +240,8 @@ st.markdown("""
         position: absolute;
         z-index: 10;
         bottom: 135%;
-        left: 50%;
-        transform: translateX(-50%); /* Better centering method that avoids edge overflow */
+        /* Adjusted to prevent tooltip from pushing the screen edge on mobile */
+        right: 0; 
         opacity: 0;
         transition: opacity 0.2s;
         font-size: 11px;
@@ -245,15 +249,13 @@ st.markdown("""
         border: 1px solid #374151;
         box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         pointer-events: none;
-        white-space: normal;
     }
 
     .chip-overflow .tooltip-text::after {
         content: "";
         position: absolute;
         top: 100%;
-        left: 50%;
-        margin-left: -5px;
+        right: 15px; /* Aligns the arrow with the right-aligned box */
         border-width: 5px;
         border-style: solid;
         border-color: #1F2937 transparent transparent transparent;
@@ -264,7 +266,7 @@ st.markdown("""
         opacity: 1;
     }
 
-    .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; word-wrap: break-word; }
+    .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
 """, unsafe_allow_html=True)
