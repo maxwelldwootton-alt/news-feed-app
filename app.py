@@ -18,6 +18,9 @@ SOURCE_MAPPING = {
     'al-jazeera-english': 'Al Jazeera'
 }
 
+# Create a Reverse Mapping (Display Name -> Slug) for logic
+REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
+
 # Define the default neutral list using slugs
 NEUTRAL_SOURCES = [
     'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
@@ -108,15 +111,24 @@ with st.sidebar:
         current_start, current_end = today, today
 
     st.subheader("Trusted Sources")
-    all_options = list(SOURCE_MAPPING.keys()) # We use the keys (slugs) as the actual values
     
-    current_sources = st.multiselect(
-        "Select Sources:",
-        options=all_options,
-        default=all_options,
-        # format_func converts the slug 'reuters' to 'Reuters' in the dropdown
-        format_func=lambda x: SOURCE_MAPPING.get(x, x)
+    # Prepare lists for st.pills
+    display_names = list(SOURCE_MAPPING.values()) # ["Reuters", "Associated Press"...]
+    
+    # st.pills returns the list of selected DISPLAY NAMES
+    selected_display_names = st.pills(
+        "Toggle sources:",
+        options=display_names,
+        default=display_names, # All selected by default
+        selection_mode="multi"
     )
+    
+    # Convert Display Names back to Slugs for the API
+    # If nothing is selected, selected_display_names might be None or empty
+    if selected_display_names:
+        current_sources = [REVERSE_MAPPING[name] for name in selected_display_names]
+    else:
+        current_sources = []
     
     st.subheader("Sensationalism Filter")
     current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
@@ -156,59 +168,59 @@ with st.sidebar:
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
-    with st.spinner(f"Fetching wire updates for '{st.session_state.applied_topic}'..."):
-        articles = fetch_news(
-            st.session_state.applied_topic, 
-            st.session_state.applied_sources, 
-            st.session_state.applied_start_date, 
-            st.session_state.applied_end_date
-        )
-        
-        count = 0
-        if not articles:
-            st.info("No articles found.")
+    # Ensure at least one source is selected
+    if not st.session_state.applied_sources:
+        st.warning("⚠️ Please select at least one source in the sidebar.")
+    else:
+        with st.spinner(f"Fetching wire updates for '{st.session_state.applied_topic}'..."):
+            articles = fetch_news(
+                st.session_state.applied_topic, 
+                st.session_state.applied_sources, 
+                st.session_state.applied_start_date, 
+                st.session_state.applied_end_date
+            )
             
-        for article in articles:
-            title = article['title']
-            if title == "[Removed]": continue
-            
-            # --- DATE FORMATTING ---
-            iso_date = article['publishedAt'][:10]
-            date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
-            published_formatted = date_obj.strftime('%m/%d/%Y')
-            
-            # --- SOURCE FORMATTING ---
-            # Try to match the API source name to our polished list
-            # The API returns source names like "Associated Press", but we want to be safe
-            api_source_name = article['source']['name']
-            
-            # If the API source ID (slug) is available, use our mapping for consistency
-            api_source_id = article['source']['id'] 
-            display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+            count = 0
+            if not articles:
+                st.info("No articles found.")
+                
+            for article in articles:
+                title = article['title']
+                if title == "[Removed]": continue
+                
+                # --- DATE FORMATTING ---
+                iso_date = article['publishedAt'][:10]
+                date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
+                published_formatted = date_obj.strftime('%m/%d/%Y')
+                
+                # --- SOURCE FORMATTING ---
+                api_source_name = article['source']['name']
+                api_source_id = article['source']['id'] 
+                display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
 
-            description = article['description']
-            subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
-            is_emotional = subjectivity > 0.5
-            
-            if st.session_state.applied_emotional and is_emotional:
-                continue
-            
-            count += 1
-            css_class = "emotional" if is_emotional else "neutral"
-            emotional_label = "⚠️ Opinion/High Emotion" if is_emotional else "✅ Objective Tone"
-            
-            st.markdown(f"""
-            <div class="{css_class}" style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <a href="{article['url']}" target="_blank" class="headline">{title}</a>
-                <br><br>
-                <div class="metadata">
-                    <b>{display_source}</b> | {published_formatted} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
+                description = article['description']
+                subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
+                is_emotional = subjectivity > 0.5
+                
+                if st.session_state.applied_emotional and is_emotional:
+                    continue
+                
+                count += 1
+                css_class = "emotional" if is_emotional else "neutral"
+                emotional_label = "⚠️ Opinion/High Emotion" if is_emotional else "✅ Objective Tone"
+                
+                st.markdown(f"""
+                <div class="{css_class}" style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <a href="{article['url']}" target="_blank" class="headline">{title}</a>
+                    <br><br>
+                    <div class="metadata">
+                        <b>{display_source}</b> | {published_formatted} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
+                    </div>
+                    <p style="font-family: Arial; font-size: 14px; margin-top: 10px; color: #34495e;">
+                        {description if description else ''}
+                    </p>
                 </div>
-                <p style="font-family: Arial; font-size: 14px; margin-top: 10px; color: #34495e;">
-                    {description if description else ''}
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        if count == 0 and articles:
-            st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
+                """, unsafe_allow_html=True)
+                
+            if count == 0 and articles:
+                st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
