@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, date
 # --- CONFIGURATION ---
 API_KEY = 'c85bd651b9c24f97918f8c85ddc4a36f' 
 
-# Map the API 'slugs' to clean Display Names
 SOURCE_MAPPING = {
     'reuters': 'Reuters',
     'associated-press': 'Associated Press',
@@ -18,16 +17,10 @@ SOURCE_MAPPING = {
     'al-jazeera-english': 'Al Jazeera'
 }
 
-# Reverse Mapping (Display Name -> Slug)
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
-
-# Default neutral list
-NEUTRAL_SOURCES = [
-    'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
-]
+NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
 # --- INITIALIZE SESSION STATE ---
-# This controls the "Applied" state (what the feed is actually showing)
 if 'applied_topic' not in st.session_state:
     st.session_state.applied_topic = "Technology"
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
@@ -65,43 +58,67 @@ def analyze_sentiment(text):
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="Pure News Feed", page_icon="📰", layout="centered")
 
-# --- CSS STYLING (Dark Mode + Blue Theme) ---
+# --- CSS STYLING (Dark Mode + Blue Theme + Pro UI) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Card Styles */
+    /* Card Container with Hover Lift */
+    .card-container {
+        background-color: #1E1E1E; /* Slightly darker for contrast */
+        padding: 20px; 
+        border-radius: 10px; 
+        margin-bottom: 20px; 
+        border: 1px solid #333;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .card-container:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 15px rgba(0,0,0,0.3);
+        border-color: #3B82F6; /* Glow blue on hover */
+    }
+
+    /* Typography */
     .headline { 
         font-family: 'Georgia', serif; 
-        font-size: 22px; 
-        font-weight: bold; 
-        color: #E0E0E0; 
+        font-size: 20px; 
+        font-weight: 600; 
+        color: #F3F4F6; 
         text-decoration: none; 
-        transition: color 0.2s;
+        line-height: 1.4;
     }
-    .headline:hover {
-        color: #3B82F6; 
-    }
-    .metadata { 
-        font-family: 'Arial', sans-serif; 
-        font-size: 12px; 
-        color: #A0A0A0; 
-    }
-    .card-container {
-        background-color: #262730; 
-        padding: 15px; 
-        border-radius: 8px; 
-        margin-bottom: 20px; 
-        border: 1px solid #363636;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
+    .headline:hover { color: #60A5FA; }
     
+    .metadata { 
+        font-family: 'Inter', sans-serif; 
+        font-size: 12px; 
+        color: #9CA3AF; 
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Badges */
+    .badge {
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .badge-neutral { background-color: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-emotional { background-color: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+
     /* Button Transition */
     section[data-testid="stSidebar"] .stButton button {
         width: 100%;
-        border-radius: 5px;
-        transition: background-color 0.3s ease;
+        border-radius: 6px;
+        transition: background-color 0.2s ease;
+        font-weight: 600;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -114,21 +131,18 @@ st.caption("No algorithms. No comments. Just headlines.")
 with st.sidebar:
     st.header("Filters")
     
-    # --- 1. TOPIC SELECTION ---
+    # 1. TOPIC SELECTION
     SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Space Exploration"]
 
-    # Initialize Defaults: Technology selected, Search box empty
     if "topic_pills" not in st.session_state:
         st.session_state.topic_pills = "Technology"
     if "custom_search" not in st.session_state:
         st.session_state.custom_search = ""
 
-    # Callback: If Pill clicked -> Clear Text Input
     def on_pill_change():
         if st.session_state.topic_pills:
             st.session_state.custom_search = ""
             
-    # Callback: If Text typed -> Deselect Pill
     def on_text_change():
         if st.session_state.custom_search:
             st.session_state.topic_pills = None
@@ -147,17 +161,16 @@ with st.sidebar:
         on_change=on_text_change
     )
     
-    # Logic: Decide which topic to use for the API
     if st.session_state.custom_search:
         current_topic = st.session_state.custom_search
     elif st.session_state.topic_pills:
         current_topic = st.session_state.topic_pills
     else:
-        current_topic = "Technology" # Fallback if user clears everything
+        current_topic = "Technology"
     
     st.divider()
 
-    # --- 2. TIMEFRAME ---
+    # 2. TIMEFRAME
     st.subheader("Timeframe")
     today = date.today()
     current_date_range = st.date_input(
@@ -172,7 +185,7 @@ with st.sidebar:
     else:
         current_start, current_end = today, today
 
-    # --- 3. SOURCES ---
+    # 3. SOURCES
     st.subheader("Trusted Sources")
     display_names = list(SOURCE_MAPPING.values())
     
@@ -188,11 +201,11 @@ with st.sidebar:
     else:
         current_sources = []
     
-    # --- 4. SENSATIONALISM FILTER ---
+    # 4. SENSATIONALISM FILTER
     st.subheader("Sensationalism Filter")
     current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
     
-    # --- DETECT CHANGES ---
+    # DETECT CHANGES
     has_changes = False
     if (current_topic != st.session_state.applied_topic or
         current_start != st.session_state.applied_start_date or
@@ -201,7 +214,6 @@ with st.sidebar:
         current_emotional != st.session_state.applied_emotional):
         has_changes = True
 
-    # --- RENDER REFRESH BUTTON ---
     if st.button("Refresh Feed"):
         st.session_state.applied_topic = current_topic
         st.session_state.applied_start_date = current_start
@@ -210,7 +222,6 @@ with st.sidebar:
         st.session_state.applied_emotional = current_emotional
         st.rerun()
 
-    # --- DYNAMIC CSS (Modern Blue) ---
     if has_changes:
         st.markdown("""
             <style>
@@ -238,50 +249,47 @@ else:
                 st.session_state.applied_end_date
             )
             
-            count = 0
             if not articles:
                 st.info("No articles found.")
+            else:
+                # --- NEW: NOISE DASHBOARD ---
+                # Pre-calculate stats for the dashboard
+                total_articles = len(articles)
+                emotional_count = sum(1 for a in articles if analyze_sentiment(a['title'])[0] > 0.5)
                 
-            for article in articles:
-                title = article['title']
-                if title == "[Removed]": continue
+                # Show dashboard
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total Stories", total_articles)
+                c2.metric("Subjective / Emotional", emotional_count)
                 
-                # Date Formatting
-                iso_date = article['publishedAt'][:10]
-                date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
-                published_formatted = date_obj.strftime('%m/%d/%Y')
-                
-                # Source Formatting
-                api_source_name = article['source']['name']
-                api_source_id = article['source']['id'] 
-                display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+                # Calculate filtering percentage
+                if total_articles > 0:
+                    clean_ratio = int(((total_articles - emotional_count) / total_articles) * 100)
+                else:
+                    clean_ratio = 100
+                    
+                c3.metric("Signal Clarity", f"{clean_ratio}%", delta="Base Quality")
+                st.markdown("---")
 
-                description = article['description']
-                subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
-                
-                is_emotional = subjectivity > 0.5
-                
-                if st.session_state.applied_emotional and is_emotional:
-                    continue
-                
-                count += 1
-                css_class = "emotional" if is_emotional else "neutral"
-                emotional_label = "⚠️ Opinion/High Emotion" if is_emotional else "✅ Objective Tone"
-                emotional_color = "#ef4444" if is_emotional else "#2ecc71" # Red vs Green
-                
-                # Dark Mode Card HTML
-                st.markdown(f"""
-                <div class="card-container {css_class}">
-                    <a href="{article['url']}" target="_blank" class="headline">{title}</a>
-                    <br><br>
-                    <div class="metadata">
-                        <b>{display_source}</b> | {published_formatted} | <span style="color: {emotional_color}">{emotional_label}</span>
-                    </div>
-                    <p style="font-family: Arial; font-size: 14px; margin-top: 10px; color: #D1D5DB;">
-                        {description if description else ''}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            if count == 0 and articles:
-                st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
+                # --- RENDER ARTICLES ---
+                filtered_count = 0
+                for article in articles:
+                    title = article['title']
+                    if title == "[Removed]": continue
+                    
+                    # Date
+                    iso_date = article['publishedAt'][:10]
+                    date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
+                    published_formatted = date_obj.strftime('%b %d, %Y')
+                    
+                    # Source
+                    api_source_name = article['source']['name']
+                    api_source_id = article['source']['id'] 
+                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+
+                    description = article['description']
+                    subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
+                    
+                    is_emotional = subjectivity > 0.5
+                    
+                    # Filter Logic
