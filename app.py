@@ -4,8 +4,8 @@ from textblob import TextBlob
 from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
-# ⚠️ REPLACE THIS WITH YOUR ACTUAL KEY OR USE st.secrets["NEWS_API_KEY"]
-API_KEY = '68bf6222804f431d9f3697e73d759099' 
+# API Key Hardcoded for iteration
+API_KEY = '68bf6222804f431d9f3697e73d759099'
 
 SOURCE_MAPPING = {
     'reuters': 'Reuters',
@@ -26,10 +26,12 @@ DEFAULT_TOPICS = [
 ]
 
 # --- INITIALIZE SESSION STATE ---
-if 'saved_custom_topics' not in st.session_state:
-    st.session_state.saved_custom_topics = [] # The permanent list of custom searches
 
-# Active selections (Subsets of the lists above)
+# 1. The Master List of Custom Topics (Saved permanently in session)
+if 'saved_custom_topics' not in st.session_state:
+    st.session_state.saved_custom_topics = []
+
+# 2. The Active Selections (What is currently green/selected)
 if 'active_default' not in st.session_state:
     st.session_state.active_default = DEFAULT_TOPICS.copy()
 
@@ -78,25 +80,34 @@ def analyze_sentiment(text):
 
 # --- CALLBACKS ---
 def add_custom_topic():
+    """Adds a topic and automatically selects it."""
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
-        # 1. Add to Saved List (if not exists)
+        
+        # Add to SAVED list if new
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics.insert(0, new_topic)
-        # 2. Automatically Select it
+            
+        # Add to ACTIVE selection immediately
         if new_topic not in st.session_state.active_custom:
-            st.session_state.active_custom = st.session_state.active_custom + [new_topic]
+            st.session_state.active_custom.append(new_topic)
+            
     st.session_state.search_input = ""
 
-def remove_custom_topics():
-    # Remove selected items from the SAVED list
-    for t in st.session_state.topics_to_delete:
-        if t in st.session_state.saved_custom_topics:
-            st.session_state.saved_custom_topics.remove(t)
-        # Also remove from active selection if it was there
-        if t in st.session_state.active_custom:
-            st.session_state.active_custom.remove(t)
+def handle_custom_click():
+    """Logic to handle clicks depending on Edit Mode."""
+    if st.session_state.edit_mode:
+        # DELETE MODE: Find what changed and REMOVE it from saved list
+        
+        # We compare the widget state (new) vs the saved state (old)
+        # Note: In delete mode, we technically don't care about selection, 
+        # but st.pills forces us to think in terms of selection.
+        # A simpler way: The user clicked something. If it's in the list, kill it.
+        
+        # Actually, standard pills behavior is better for Toggle.
+        # For Delete, we will use a separate mechanism in the UI below to be safer.
+        pass
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
@@ -149,38 +160,62 @@ st.markdown("""
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
 
-# --- SEARCH & CUSTOM TOPICS ---
+# --- SEARCH & CUSTOM FEED LOGIC ---
 
-# 1. SEARCH BAR
-st.text_input(
-    "Add a custom feed:", 
-    key="search_input",
-    on_change=add_custom_topic,
-    placeholder="e.g. Nvidia, Bitcoin, Election..."
-)
-
-# 2. CUSTOM CHIPS SECTION (Only if user has added some)
-if st.session_state.saved_custom_topics:
-    st.write("**My Feeds** (🔎 Custom)")
-    st.pills(
-        "My Feeds",
-        options=st.session_state.saved_custom_topics,
-        key="active_custom",
-        selection_mode="multi",
+col_search, col_edit = st.columns([4, 1])
+with col_search:
+    st.text_input(
+        "Add a custom topic:", 
+        key="search_input",
+        on_change=add_custom_topic,
+        placeholder="e.g. Nvidia, Bitcoin, Election...",
         label_visibility="collapsed"
     )
+with col_edit:
+    # THE EDIT MODE TOGGLE
+    # This acts like "Edit Home Screen" on iPhone
+    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
+
+# --- CUSTOM CHIPS SECTION ---
+if st.session_state.saved_custom_topics:
+    st.write("**My Feeds**")
     
-    # "Delete" Management
-    with st.expander("🗑️ Remove Custom Feeds"):
-        st.multiselect(
-            "Select feeds to permanently delete:",
+    if is_edit_mode:
+        st.warning("🗑️ **Delete Mode Active:** Uncheck a chip below to delete it permanently.")
+        
+        # IN DELETE MODE:
+        # We show all topics. If user changes state, we detect which one was "unselected" (clicked) and remove it.
+        # To make this intuitive: We default them all to SELECTED. The user "Unchecks" to delete.
+        
+        def on_delete_change():
+            # Find what is MISSING from the widget compared to the saved list
+            remaining = st.session_state.temp_delete_widget
+            st.session_state.saved_custom_topics = remaining
+            # Also cleanup active selections
+            st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
+
+        st.pills(
+            "Delete Custom Feeds",
             options=st.session_state.saved_custom_topics,
-            key="topics_to_delete",
-            on_change=remove_custom_topics
+            default=st.session_state.saved_custom_topics, # All selected by default
+            key="temp_delete_widget",
+            on_change=on_delete_change,
+            selection_mode="multi",
+            label_visibility="collapsed"
+        )
+        
+    else:
+        # NORMAL MODE (Select/Deselect)
+        st.pills(
+            "My Feeds",
+            options=st.session_state.saved_custom_topics,
+            key="active_custom",
+            selection_mode="multi",
+            label_visibility="collapsed"
         )
 
-# 3. DEFAULT CHIPS SECTION
-st.write("**Trending Topics** (🔥 Popular)")
+# --- DEFAULT CHIPS SECTION ---
+st.write("**Trending Topics**")
 st.pills(
     "Trending Topics",
     options=DEFAULT_TOPICS,
@@ -190,17 +225,15 @@ st.pills(
 )
 
 # --- QUERY BUILDING ---
-# Combine both lists
 combined_selection = st.session_state.active_default + st.session_state.active_custom
 
 if combined_selection:
-    # Wrap in quotes for exact matching logic
     formatted_topics = [f'"{t}"' if " " in t else t for t in combined_selection]
     api_query = " OR ".join(formatted_topics)
 else:
     api_query = "General"
 
-# --- SIDEBAR FILTERS ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
@@ -231,7 +264,7 @@ st.divider()
 # --- MAIN FEED ---
 
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
-    st.warning("⚠️ Please enter a valid NewsAPI key in the code configuration.")
+    st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
