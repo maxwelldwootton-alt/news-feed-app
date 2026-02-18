@@ -8,6 +8,7 @@ import google.generativeai as genai
 # 🔒 Pulling keys securely from Streamlit Secrets
 NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+#
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
