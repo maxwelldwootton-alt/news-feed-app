@@ -24,17 +24,17 @@ DEFAULT_TOPICS = [
     "Politics", "Epstein Files", "Nuclear", "Space Exploration"
 ]
 
-# --- KEYWORD MATCHING ENGINE ---
-# This helps us guess which category an article belongs to
+# --- IMPROVED KEYWORD MATCHING ENGINE ---
+# I have added many more related terms to catch headlines that don't say the exact topic name
 TOPIC_KEYWORDS = {
-    "Technology": ["tech", "software", "hardware", "apple", "google", "microsoft", "internet", "device", "silicon"],
-    "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural", "nvidia"],
-    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "rate", "fed", "trading"],
-    "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "blockchain", "token", "coinbase"],
-    "Politics": ["politics", "biden", "trump", "congress", "senate", "law", "election", "campaign"],
-    "Epstein Files": ["epstein", "ghislaine", "maxwell", "document", "court", "list"],
-    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor"],
-    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket"]
+    "Technology": ["tech", "software", "hardware", "apple", "google", "microsoft", "internet", "device", "silicon", "meta", "amazon", "server", "cyber", "data", "app", "mobile", "ios", "android"],
+    "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural", "nvidia", "altman", "chatbot", "generative"],
+    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "rate", "fed", "trading", "investor", "bull", "bear", "wall st", "ipo", "shares", "revenue", "profit", "quarterly"],
+    "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "blockchain", "token", "coinbase", "binance", "wallet", "web3", "defi"],
+    "Politics": ["politics", "biden", "trump", "congress", "senate", "law", "election", "campaign", "white house", "democrat", "republican", "gop", "bill", "vote", "voter"],
+    "Epstein Files": ["epstein", "ghislaine", "maxwell", "document", "court", "list", "judge", "testimony", "deposition"],
+    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor", "plant", "energy", "radiation"],
+    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket", "launch", "satellite", "astronaut", "universe"]
 }
 
 # --- INITIALIZE SESSION STATE ---
@@ -92,7 +92,7 @@ def classify_article(text, active_defaults, active_customs):
     found_tags = []
     text_lower = text.lower()
     
-    # 1. Check Default Topics (using keyword dictionary)
+    # 1. Check Default Topics (using expanded keyword dictionary)
     for topic in active_defaults:
         keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
         # Add topic name itself to search list
@@ -100,16 +100,22 @@ def classify_article(text, active_defaults, active_customs):
             keywords.append(topic.lower())
             
         for k in keywords:
+            # We use ' ' + k + ' ' checks or simple substring checks
+            # Simple substring is better for news API matching behavior
             if k in text_lower:
                 found_tags.append(topic)
-                break # Found a match for this topic, stop checking keywords
+                break 
     
-    # 2. Check Custom Topics (Direct string match)
+    # 2. Check Custom Topics
     for topic in active_customs:
         if topic.lower() in text_lower:
             found_tags.append(topic)
             
-    # Deduplicate (just in case)
+    # 3. FALLBACK: If no tags found, label it 'General' so the UI isn't empty
+    if not found_tags:
+        found_tags.append("General")
+        
+    # Deduplicate
     return list(dict.fromkeys(found_tags))
 
 # --- CALLBACKS ---
@@ -163,18 +169,12 @@ st.markdown("""
     
     .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
     
-    /* STANDARD CHIPS */
+    /* CHIP STYLES */
     .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
     .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
     .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
     .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
-    
-    /* NEW: TREND CATEGORY CHIP (Blue Outline) */
-    .chip-category { 
-        background-color: transparent; 
-        color: #60A5FA; /* Light Blue Text */
-        border: 1px solid #3B82F6; /* Blue Border */
-    }
+    .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
 
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
@@ -267,16 +267,15 @@ else:
                 image_url = article.get('urlToImage')
                 description = article['description'] or ""
                 
-                # --- AUTO-TAGGING LOGIC ---
-                # Find which active topics match this article
+                # --- AUTO-TAGGING ---
+                # Now uses expanded keywords + fallback "General"
                 article_tags = classify_article(title + " " + description, st.session_state.active_default, st.session_state.active_custom)
                 
-                # Create HTML for tags (if any)
                 tags_html = ""
                 for tag in article_tags:
                     tags_html += f'<span class="chip chip-category">{tag}</span>'
                 
-                # --- SENTIMENT LOGIC ---
+                # --- SENTIMENT ---
                 subjectivity, polarity = analyze_sentiment(title + " " + description)
                 is_emotional = subjectivity > 0.5
                 if current_emotional and is_emotional: continue
@@ -302,7 +301,8 @@ else:
                             <a href="{url}" target="_blank" class="headline">{title}</a>
                             <div class="metadata">
                                 {source_chip}
-                                {tags_html} <span style="color: #6B7280; font-weight: bold;">•</span>
+                                {tags_html}
+                                <span style="color: #6B7280; font-weight: bold;">•</span>
                                 {sentiment_chip}
                                 <span style="color: #6B7280; font-weight: bold;">•</span>
                                 <span>{published_formatted}</span>
