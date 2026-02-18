@@ -53,11 +53,10 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    # 🕒 CHANGED: Default exactly to yesterday's date
+    # 🕒 Default exactly to yesterday's date
     yesterday = date.today() - timedelta(days=1)
     st.session_state.applied_start_date = yesterday
     st.session_state.applied_end_date = yesterday
-    
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
@@ -112,9 +111,7 @@ def classify_article(text, active_defaults, active_customs):
         if topic.lower() in text_lower:
             found_tags.append(topic)
             
-    if not found_tags:
-        found_tags.append("General")
-        
+    # Dropped the "General" fallback here so strict filtering works
     return list(dict.fromkeys(found_tags))
 
 @st.cache_data(show_spinner=False)
@@ -240,19 +237,24 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-combined_selection = st.session_state.active_default + st.session_state.active_custom
-if combined_selection:
-    formatted_topics = [f'"{t}"' if " " in t else t for t in combined_selection]
-    api_query = " OR ".join(formatted_topics)
-else:
-    api_query = "General"
+# --- MASTER QUERY BUILDER ---
+# Fetch all available topics (active and inactive) so the API call is consistent and hits the cache.
+all_topics = DEFAULT_TOPICS + st.session_state.saved_custom_topics
+query_parts = []
+for t in all_topics:
+    part = f'"{t}"' if " " in t else t
+    # Keep query length safe for NewsAPI limits
+    if len(" OR ".join(query_parts + [part])) < 450: 
+        query_parts.append(part)
+
+master_api_query = " OR ".join(query_parts) if query_parts else "General"
+active_topics = st.session_state.active_default + st.session_state.active_custom
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
     
-    # 🕒 CHANGED: Default UI widget to Yesterday
     yesterday = today - timedelta(days=1)
     current_date_range = st.date_input(
         "Select Date Range", 
@@ -262,7 +264,6 @@ with st.sidebar:
         format="MM/DD/YYYY"
     )
     
-    # Handle the date tuple correctly (Streamlit returns a 1-length tuple if only one day is clicked)
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
     elif len(current_date_range) == 1:
@@ -291,7 +292,9 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
-            raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+            
+            # Fetch using the stable Master Query (caches effectively)
+            raw_articles = fetch_news(master_api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             
             processed_articles = []
             priority_list = st.session_state.active_custom + st.session_state.active_default
@@ -302,12 +305,19 @@ else:
                 content = article.get('content') or ""
                 text_to_analyze = f"{title} {description} {content}"
                 
+                # Check for tags against currently active chips
+                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                
+                # 🛑 LOCAL STRICT FILTER: If you have active chips, but this article matches none of them, skip it!
+                if active_topics and not article_tags:
+                    continue
+                
                 subjectivity, polarity = analyze_sentiment(text_to_analyze)
                 is_emotional = subjectivity > 0.5
                 if current_emotional and is_emotional: 
                     continue 
                 
-                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                # Sort tags
                 article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
                 article['computed_tags'] = article_tags
@@ -320,7 +330,7 @@ else:
             with tab_feed:
                 if not processed_articles:
                     if raw_articles:
-                        st.warning("Articles were found, but all were hidden by the 'Sensationalism Filter'.")
+                        st.warning("Articles were found, but all were hidden by the 'Sensationalism Filter' or didn't match your active topic chips.")
                     else:
                         st.info("No articles found matching these topics.")
                     
