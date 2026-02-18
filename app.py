@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, date
 # --- CONFIGURATION ---
 API_KEY = 'c85bd651b9c24f97918f8c85ddc4a36f' 
 
+# Map the API 'slugs' to clean Display Names
 SOURCE_MAPPING = {
     'reuters': 'Reuters',
     'associated-press': 'Associated Press',
@@ -16,14 +17,21 @@ SOURCE_MAPPING = {
     'bbc-news': 'BBC News',
     'al-jazeera-english': 'Al Jazeera'
 }
+
+# Create a Reverse Mapping (Display Name -> Slug) for logic
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
-NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
+
+# Define the default neutral list using slugs
+NEUTRAL_SOURCES = [
+    'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
+]
 
 # --- INITIALIZE SESSION STATE ---
 if 'applied_topic' not in st.session_state:
     st.session_state.applied_topic = "Technology"
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
     st.session_state.applied_end_date = date.today()
+    # Default selection includes neutrals + a few others
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
@@ -74,36 +82,6 @@ st.markdown("""
         border-radius: 5px;
         transition: background-color 0.3s ease;
     }
-
-    /* --- FORCE CHIPS TO BE BLUE --- */
-    /* We use a universal selector (*) to hit the span/div/button whatever Streamlit renders */
-    
-    /* SELECTED STATE: Blue Background, Blue Border, Bold Text */
-    [data-testid="stPillsOption"][aria-selected="true"] {
-        background-color: #007bff !important;
-        color: white !important;
-        border: 2px solid #0056b3 !important; /* Slightly darker blue border */
-        font-weight: bold !important;
-    }
-    
-    /* DESELECTED STATE: Ensure it looks clean */
-    [data-testid="stPillsOption"][aria-selected="false"] {
-        background-color: white !important;
-        color: #333 !important;
-        border: 1px solid #ddd !important;
-    }
-    
-    /* HOVER EFFECT */
-    [data-testid="stPillsOption"]:hover {
-        border-color: #007bff !important;
-        color: #007bff !important;
-    }
-
-    /* Optional: Force Checkbox to Blue too */
-    div[data-baseweb="checkbox"] div[aria-checked="true"] {
-        background-color: #007bff !important;
-        border-color: #007bff !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -134,15 +112,19 @@ with st.sidebar:
 
     st.subheader("Trusted Sources")
     
-    display_names = list(SOURCE_MAPPING.values())
+    # Prepare lists for st.pills
+    display_names = list(SOURCE_MAPPING.values()) # ["Reuters", "Associated Press"...]
     
+    # st.pills returns the list of selected DISPLAY NAMES
     selected_display_names = st.pills(
         "Toggle sources:",
         options=display_names,
-        default=display_names, 
+        default=display_names, # All selected by default
         selection_mode="multi"
     )
     
+    # Convert Display Names back to Slugs for the API
+    # If nothing is selected, selected_display_names might be None or empty
     if selected_display_names:
         current_sources = [REVERSE_MAPPING[name] for name in selected_display_names]
     else:
@@ -186,6 +168,7 @@ with st.sidebar:
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
+    # Ensure at least one source is selected
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
@@ -205,12 +188,12 @@ else:
                 title = article['title']
                 if title == "[Removed]": continue
                 
-                # Format Date
+                # --- DATE FORMATTING ---
                 iso_date = article['publishedAt'][:10]
                 date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
                 published_formatted = date_obj.strftime('%m/%d/%Y')
                 
-                # Format Source
+                # --- SOURCE FORMATTING ---
                 api_source_name = article['source']['name']
                 api_source_id = article['source']['id'] 
                 display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
