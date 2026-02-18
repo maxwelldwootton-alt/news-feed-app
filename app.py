@@ -42,8 +42,6 @@ if 'applied_topic' not in st.session_state:
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
     
-    # Sort sources to ensure the list is always in the same order.
-    # This prevents "['bbc', 'cnn']" and "['cnn', 'bbc']" from creating two different cache entries.
     if sources:
         sources.sort()
         
@@ -63,7 +61,6 @@ def fetch_news(query, sources, from_date, to_date, api_key):
         
         if data.get('status') == 'ok':
             articles = data['articles']
-            # Filter out removed articles immediately
             valid_articles = [a for a in articles if a['title'] != "[Removed]"]
             valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
             return valid_articles
@@ -99,15 +96,36 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    /* THE HOVER STATE */
     .card-container:hover {
         background-color: #2E2F38; 
         border-color: #3B82F6;     
         box-shadow: 0 8px 15px rgba(0,0,0,0.3); 
         transform: translateY(-3px); 
     }
+
+    /* --- FLEX LAYOUT FOR IMAGE & TEXT --- */
+    .card-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
+    }
+
+    .text-column {
+        flex: 1; /* Takes up all remaining space */
+        min-width: 0; /* Prevents text from overflowing */
+    }
+
+    .img-column img {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid #444;
+        flex-shrink: 0; /* Prevents image from squishing */
+    }
     
-    /* Headline Styling - UPDATED FONT */
+    /* Headline Styling */
     .headline { 
         display: block; 
         font-family: 'Merriweather', serif; 
@@ -118,20 +136,19 @@ st.markdown("""
         line-height: 1.4;
         transition: color 0.2s;
         letter-spacing: -0.3px;
+        margin-bottom: 8px;
     }
     
-    /* Highlight title on card hover */
     .card-container:hover .headline {
          color: #60A5FA; 
     }
     
-    /* Metadata Container - UPDATED FONT */
+    /* Metadata Container */
     .metadata { 
         display: flex;
         align-items: center;
         flex-wrap: wrap;
         gap: 10px;
-        margin-top: 14px;
         font-family: 'Inter', sans-serif; 
         font-size: 12px; 
         color: #A0A0A0; 
@@ -142,7 +159,7 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         padding: 4px 10px;
-        border-radius: 6px; /* Slightly squarer for 'tech' feel */
+        border-radius: 6px; 
         font-size: 11px;
         font-family: 'Inter', sans-serif;
         font-weight: 600;
@@ -152,26 +169,26 @@ st.markdown("""
     }
     
     .chip-source {
-        background-color: #374151; /* Dark Grey */
+        background-color: #374151; 
         color: #E5E7EB;
         border: 1px solid #4B5563;
     }
     
     .chip-neutral {
-        background-color: #059669; /* Emerald Green */
+        background-color: #059669; 
         border: 1px solid #10B981;
     }
     
     .chip-emotional {
-        background-color: #DC2626; /* Red */
+        background-color: #DC2626; 
         border: 1px solid #EF4444;
     }
 
-    /* Description Text - UPDATED FONT */
+    /* Description Text */
     .description-text {
         font-family: 'Inter', sans-serif;
         font-size: 15px;
-        margin-top: 16px;
+        margin-top: 14px;
         color: #D1D5DB;
         line-height: 1.6;
         font-weight: 300;
@@ -196,7 +213,8 @@ with st.sidebar:
     st.header("Filters")
     
     # --- 1. TOPIC SELECTION ---
-    SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Space Exploration"]
+    # Added 'Nuclear' to the list
+    SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Nuclear", "Space Exploration"]
 
     if "topic_pills" not in st.session_state:
         st.session_state.topic_pills = "Technology"
@@ -322,6 +340,7 @@ else:
             for article in articles:
                 title = article['title']
                 url = article['url']
+                image_url = article.get('urlToImage')
                 
                 # Date Formatting
                 iso_date = article['publishedAt'][:10]
@@ -351,20 +370,34 @@ else:
                 else:
                     sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
                 
-                # HTML Card
+                # Build Image HTML (Only if exists)
+                img_html = ""
+                if image_url:
+                    img_html = f"""
+                    <div class="img-column">
+                        <img src="{image_url}" alt="Thumbnail">
+                    </div>
+                    """
+                
+                # HTML Card Structure
                 st.markdown(f"""
                 <div class="card-container">
-                    <a href="{url}" target="_blank" class="headline">{title}</a>
-                    <div class="metadata">
-                        {source_chip}
-                        <span style="color: #6B7280; font-weight: bold;">•</span>
-                        {sentiment_chip}
-                        <span style="color: #6B7280; font-weight: bold;">•</span>
-                        <span>{published_formatted}</span>
+                    <div class="card-content">
+                        <div class="text-column">
+                            <a href="{url}" target="_blank" class="headline">{title}</a>
+                            <div class="metadata">
+                                {source_chip}
+                                <span style="color: #6B7280; font-weight: bold;">•</span>
+                                {sentiment_chip}
+                                <span style="color: #6B7280; font-weight: bold;">•</span>
+                                <span>{published_formatted}</span>
+                            </div>
+                            <p class="description-text">
+                                {description if description else ''}
+                            </p>
+                        </div>
+                        {img_html}
                     </div>
-                    <p class="description-text">
-                        {description if description else ''}
-                    </p>
                 </div>
                 """, unsafe_allow_html=True)
                 
