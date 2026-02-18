@@ -20,7 +20,6 @@ SOURCE_MAPPING = {
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
-# --- TOPICS CONFIGURATION ---
 DEFAULT_TOPICS = [
     "Technology", 
     "Artificial Intelligence", 
@@ -33,11 +32,9 @@ DEFAULT_TOPICS = [
 ]
 
 # --- INITIALIZE SESSION STATE ---
-# We store 'custom_topics' separately so we know which ones can be removed
 if 'custom_topics' not in st.session_state:
     st.session_state.custom_topics = []
 
-# This acts as the 'Master List' of what is currently checked in the UI
 if 'selected_topics' not in st.session_state:
     st.session_state.selected_topics = DEFAULT_TOPICS.copy()
 
@@ -132,57 +129,62 @@ st.markdown("""
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
 
-# --- SEARCH LOGIC ---
+# --- CALLBACK FUNCTIONS ---
 
-# Callback to add new topics
 def add_custom_topic():
+    """Adds a new topic from the search bar."""
     new_query = st.session_state.search_input.strip()
     if new_query:
-        # 1. Add to Custom List (if not exist)
+        # Add to Custom List if unique
         if new_query not in st.session_state.custom_topics:
             st.session_state.custom_topics.append(new_query)
-        # 2. Add to Selected List (so it appears active immediately)
+        # Add to Selection (Make it active)
         if new_query not in st.session_state.selected_topics:
             st.session_state.selected_topics.append(new_query)
-    st.session_state.search_input = "" # Clear input
+    # Clear input
+    st.session_state.search_input = ""
 
-# 1. SEARCH BAR
+def clean_custom_topics():
+    """Removes custom topics if they are deselected."""
+    # We look at what is currently selected
+    current_selection = st.session_state.selected_topics
+    
+    # We look at our custom list. If a custom topic is NOT in the current selection, delete it.
+    # We use a copy of the list [:] to avoid errors while modifying it
+    for topic in st.session_state.custom_topics[:]:
+        if topic not in current_selection:
+            st.session_state.custom_topics.remove(topic)
+
+# --- SEARCH BAR ---
 st.text_input(
     "Search to add a topic:", 
     key="search_input",
-    on_change=add_custom_topic,
+    on_change=add_custom_topic, # Runs ONLY when you hit enter on search
     placeholder="e.g. Nvidia, Bitcoin, Election..."
 )
 
-# 2. CHIP DISPLAY
-# Combine Default + Custom for the options list
-# We reverse custom_topics so the newest ones appear first, next to the defaults
+# --- CHIP DISPLAY ---
+# Combine Default + Custom (Custom first so they pop up at the front)
 all_options = st.session_state.custom_topics + DEFAULT_TOPICS
+
+# Remove duplicates just in case
+all_options = list(dict.fromkeys(all_options))
 
 st.pills(
     "Active Feeds (Deselect to remove):",
     options=all_options,
-    key="selected_topics", # This automatically binds to st.session_state.selected_topics
+    key="selected_topics", 
+    on_change=clean_custom_topics, # Runs ONLY when you click a chip
     selection_mode="multi"
 )
 
-# 3. CLEANUP LOGIC (The "X" Behavior)
-# If a custom topic is in 'custom_topics' but NOT in 'selected_topics', 
-# it means the user clicked it to turn it off. We should remove it entirely.
-items_to_remove = [t for t in st.session_state.custom_topics if t not in st.session_state.selected_topics]
-
-if items_to_remove:
-    for t in items_to_remove:
-        st.session_state.custom_topics.remove(t)
-    st.rerun() # Force refresh so the chip disappears visually
-
 # --- QUERY BUILDING ---
 if st.session_state.selected_topics:
-    # Wrap multi-word topics in quotes for exact matching
+    # Wrap multi-word topics in quotes
     formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.selected_topics]
     api_query = " OR ".join(formatted_topics)
 else:
-    api_query = "General" # Fallback
+    api_query = "General"
 
 # --- SIDEBAR FILTERS ---
 with st.sidebar:
@@ -221,7 +223,7 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
-            # FETCH (Auto-cached if query string matches previous calls)
+            # FETCH (Auto-cached if query string matches)
             articles = fetch_news(
                 api_query, 
                 st.session_state.applied_sources, 
