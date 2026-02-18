@@ -49,7 +49,7 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_emotional = True
 
 # --- FUNCTIONS ---
-@st.cache_data(ttl=3600, show_spinner=False) 
+@st.cache_data(ttl=86400, show_spinner=False) # 86400 seconds = 24 hours
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
     if sources:
