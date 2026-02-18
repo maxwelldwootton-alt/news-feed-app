@@ -27,9 +27,25 @@ NEUTRAL_SOURCES = [
     'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
 ]
 
+# --- DEFINING TOPICS (Moved up so we can use them in Session State Init) ---
+SUGGESTED_TOPICS = [
+    "Technology", 
+    "Artificial Intelligence", 
+    "Stock Market", 
+    "Crypto", 
+    "Politics", 
+    "Epstein Files", 
+    "Nuclear", 
+    "Space Exploration"
+]
+
 # --- INITIALIZE SESSION STATE ---
 if 'applied_topic' not in st.session_state:
-    st.session_state.applied_topic = "Technology"
+    # DEFAULT: Join all topics with " OR " for the initial load
+    # We wrap multi-word topics in quotes for precision
+    formatted_defaults = [f'"{t}"' for t in SUGGESTED_TOPICS]
+    st.session_state.applied_topic = " OR ".join(formatted_defaults)
+    
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
     st.session_state.applied_end_date = date.today()
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
@@ -239,10 +255,10 @@ with st.sidebar:
     st.header("Filters")
     
     # --- 1. TOPIC SELECTION ---
-    SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Nuclear", "Space Exploration","Epstein Files"]
-
+    # Default: Select ALL topics
     if "topic_pills" not in st.session_state:
-        st.session_state.topic_pills = "Technology"
+        st.session_state.topic_pills = SUGGESTED_TOPICS
+        
     if "custom_search" not in st.session_state:
         st.session_state.custom_search = ""
 
@@ -252,14 +268,14 @@ with st.sidebar:
             
     def on_text_change():
         if st.session_state.custom_search:
-            st.session_state.topic_pills = None
+            st.session_state.topic_pills = []
 
     st.pills(
-        "Trending now:",
+        "Trending now (Multi-select):",
         options=SUGGESTED_TOPICS,
         key="topic_pills",
         on_change=on_pill_change,
-        selection_mode="single"
+        selection_mode="multi" # UPDATED: Allows selecting multiple/all
     )
 
     st.text_input(
@@ -268,12 +284,16 @@ with st.sidebar:
         on_change=on_text_change
     )
     
+    # LOGIC: Build the Query String
     if st.session_state.custom_search:
         current_topic = st.session_state.custom_search
     elif st.session_state.topic_pills:
-        current_topic = st.session_state.topic_pills
+        # Join topics with " OR " so API searches for ANY of them
+        # Wrap multi-word topics in quotes (e.g., "Artificial Intelligence")
+        formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.topic_pills]
+        current_topic = " OR ".join(formatted_topics)
     else:
-        current_topic = "Technology"
+        current_topic = "General" # Fallback if user unchecks everything
     
     st.divider()
 
@@ -314,6 +334,7 @@ with st.sidebar:
     
     # --- DETECT CHANGES ---
     has_changes = False
+    # Note: applied_topic is now a long string like "Tech OR Crypto", so we compare strings
     if (current_topic != st.session_state.applied_topic or
         current_start != st.session_state.applied_start_date or
         current_end != st.session_state.applied_end_date or
@@ -349,7 +370,7 @@ else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
-        with st.spinner(f"Fetching wire updates for '{st.session_state.applied_topic}'..."):
+        with st.spinner(f"Fetching wire updates..."):
             articles = fetch_news(
                 st.session_state.applied_topic, 
                 st.session_state.applied_sources, 
@@ -360,7 +381,7 @@ else:
             
             count = 0
             if not articles:
-                st.info("No articles found for this topic/timeframe.")
+                st.info("No articles found for these topics.")
                 
             for article in articles:
                 title = article['title']
