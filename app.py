@@ -24,8 +24,8 @@ def fetch_news(query, sources, from_date, to_date):
     params = {
         'q': query if query else 'general',
         'sources': ','.join(sources),
-        'from': from_date.strftime('%m-%d-%Y'),
-        'to': to_date.strftime('%m-%d-%Y'),
+        'from': from_date.strftime('%Y-%m-%d'),
+        'to': to_date.strftime('%Y-%m-%d'),
         'language': 'en',
         'sortBy': 'publishedAt',
         'apiKey': API_KEY
@@ -48,8 +48,7 @@ def analyze_sentiment(text):
 # --- APP LAYOUT ---
 st.set_page_config(page_title="Pure News Feed", page_icon="📰", layout="centered")
 
-# BASE CSS (Applied always)
-# Note: We enforce 100% width on the button to prevent size jitter
+# BASE CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -86,7 +85,8 @@ with st.sidebar:
         "Select Date Range",
         value=(today - timedelta(days=7), today),
         min_value=today - timedelta(days=29),
-        max_value=today
+        max_value=today,
+        format="MM/DD/YYYY"  # Updates the picker format
     )
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
@@ -109,7 +109,7 @@ with st.sidebar:
         current_emotional != st.session_state.applied_emotional):
         has_changes = True
 
-    # 3. Render Button (Always in the same spot)
+    # 3. Render Button
     if st.button("Refresh Feed"):
         st.session_state.applied_topic = current_topic
         st.session_state.applied_start_date = current_start
@@ -119,7 +119,6 @@ with st.sidebar:
         st.rerun()
 
     # 4. Inject Dynamic CSS *AFTER* the button
-    # This prevents the button from being pushed down by the hidden style element
     if has_changes:
         st.markdown("""
             <style>
@@ -152,6 +151,14 @@ else:
             title = article['title']
             if title == "[Removed]": continue
             
+            # --- DATE FORMATTING CHANGE ---
+            # 1. Slice to get YYYY-MM-DD
+            # 2. Parse into Date Object
+            # 3. Format as MM/DD/YYYY
+            iso_date = article['publishedAt'][:10]
+            date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
+            published_formatted = date_obj.strftime('%m/%d/%Y')
+            
             description = article['description']
             subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
             is_emotional = subjectivity > 0.5
@@ -168,7 +175,7 @@ else:
                 <a href="{article['url']}" target="_blank" class="headline">{title}</a>
                 <br><br>
                 <div class="metadata">
-                    <b>{article['source']['name']}</b> | {article['publishedAt'][:10]} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
+                    <b>{article['source']['name']}</b> | {published_formatted} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
                 </div>
                 <p style="font-family: Arial; font-size: 14px; margin-top: 10px; color: #34495e;">
                     {description if description else ''}
