@@ -25,7 +25,6 @@ SOURCE_MAPPING = {
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
-# These are now literal search terms!
 DEFAULT_TOPICS = [
     "Technology", "Artificial Intelligence", "Stock Market", "Crypto", 
     "Politics", "Epstein", "Nuclear", "Space Exploration"
@@ -42,9 +41,10 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    yesterday = date.today() - timedelta(days=1)
-    st.session_state.applied_start_date = yesterday
-    st.session_state.applied_end_date = yesterday
+    today = date.today()
+    # 🕒 WIDENED DEFAULT TIMEFRAME: Look back 3 days to ensure custom searches get hits
+    st.session_state.applied_start_date = today - timedelta(days=3)
+    st.session_state.applied_end_date = today - timedelta(days=1)
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
@@ -56,7 +56,7 @@ def fetch_news(query, sources, from_date, to_date, api_key):
         sources.sort()
     params = {
         'q': query if query else 'general',
-        'searchIn': 'title,description', # 🛑 FORCES API TO ONLY SEARCH VISIBLE TEXT
+        'searchIn': 'title,description', 
         'sources': ','.join(sources),
         'from': from_date.strftime('%Y-%m-%d'),
         'to': to_date.strftime('%Y-%m-%d'),
@@ -82,16 +82,14 @@ def analyze_sentiment(text):
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
 def classify_article(text, active_topics):
-    """
-    PERFECT 1:1 LOGIC MATCH. 
-    If the API searched for "Technology", we only tag it if the exact word "Technology" is in the text.
-    """
     found_tags = []
     text_lower = text.lower()
     
     for topic in active_topics:
-        # Regex \b ensures we match the exact standalone phrase (e.g., "app" won't match "apple")
-        if re.search(rf'\b{re.escape(topic.lower())}\b', text_lower):
+        # 🛑 SMARTER REGEX: Removed the trailing \b boundary. 
+        # This forces the word to START identically (so "app" doesn't match "apple"), 
+        # but allows for punctuation/plurals at the end (so "Election" matches "Elections" and "Apple's").
+        if re.search(rf'\b{re.escape(topic.lower())}', text_lower):
             found_tags.append(topic)
             
     return list(dict.fromkeys(found_tags))
@@ -120,10 +118,14 @@ def add_custom_topic():
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
+        
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
-        if new_topic not in st.session_state.active_custom:
-            st.session_state.active_custom = st.session_state.active_custom + [new_topic]
+            
+        current_active = st.session_state.get('active_custom', [])
+        if new_topic not in current_active:
+            st.session_state.active_custom = current_active + [new_topic]
+            
     st.session_state.search_input = ""
 
 # --- APP CONFIGURATION ---
@@ -220,12 +222,11 @@ st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
 # --- STRICT ACTIVE QUERY BUILDER ---
-# The active chips ARE the exact API query parameters now.
 active_topics = st.session_state.active_default + st.session_state.active_custom
 query_parts = []
 
 for topic in active_topics:
-    part = f'"{topic}"' # Quotes enforce exact phrase matching in NewsAPI
+    part = f'"{topic}"' 
     if len(" OR ".join(query_parts + [part])) < 450: 
         query_parts.append(part)
 
@@ -235,10 +236,10 @@ api_query = " OR ".join(query_parts) if query_parts else "General"
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
-    yesterday = today - timedelta(days=1)
+    
     current_date_range = st.date_input(
         "Select Date Range", 
-        value=(yesterday, yesterday), 
+        value=(st.session_state.applied_start_date, st.session_state.applied_end_date), 
         min_value=today - timedelta(days=29), 
         max_value=today, 
         format="MM/DD/YYYY"
@@ -249,12 +250,13 @@ with st.sidebar:
     elif len(current_date_range) == 1:
         current_start, current_end = current_date_range[0], current_date_range[0]
     else:
-        current_start, current_end = yesterday, yesterday
+        current_start, current_end = st.session_state.applied_start_date, st.session_state.applied_end_date
     
     display_names = list(SOURCE_MAPPING.values())
-    selected_display_names = st.pills("Toggle sources:", options=display_names, default=display_names, selection_mode="multi")
+    selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
-    current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
+    current_emotional = st.checkbox("Hide emotionally charged headlines?", value=st.session_state.applied_emotional)
+    
     if st.button("Update Timeframe/Sources", type="primary"):
          st.session_state.applied_start_date = current_start
          st.session_state.applied_end_date = current_end
@@ -284,7 +286,6 @@ else:
                 title = article.get('title') or ""
                 description = article.get('description') or ""
                 
-                # We only feed the Title and Description into our local scanner to identically match the API
                 text_to_analyze = f"{title} {description}"
                 
                 article_tags = classify_article(text_to_analyze, active_topics)
