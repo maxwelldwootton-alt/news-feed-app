@@ -21,22 +21,20 @@ REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
 DEFAULT_TOPICS = [
-    "Technology", 
-    "Artificial Intelligence", 
-    "Stock Market", 
-    "Crypto", 
-    "Politics", 
-    "Epstein Files", 
-    "Nuclear", 
-    "Space Exploration"
+    "Technology", "Artificial Intelligence", "Stock Market", "Crypto", 
+    "Politics", "Epstein Files", "Nuclear", "Space Exploration"
 ]
 
 # --- INITIALIZE SESSION STATE ---
-if 'custom_topics' not in st.session_state:
-    st.session_state.custom_topics = []
+if 'saved_custom_topics' not in st.session_state:
+    st.session_state.saved_custom_topics = [] # The permanent list of custom searches
 
-if 'selected_topics' not in st.session_state:
-    st.session_state.selected_topics = DEFAULT_TOPICS.copy()
+# Active selections (Subsets of the lists above)
+if 'active_default' not in st.session_state:
+    st.session_state.active_default = DEFAULT_TOPICS.copy()
+
+if 'active_custom' not in st.session_state:
+    st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
@@ -77,6 +75,28 @@ def fetch_news(query, sources, from_date, to_date, api_key):
 def analyze_sentiment(text):
     blob = TextBlob(text)
     return blob.sentiment.subjectivity, blob.sentiment.polarity
+
+# --- CALLBACKS ---
+def add_custom_topic():
+    raw_query = st.session_state.search_input.strip()
+    if raw_query:
+        new_topic = raw_query.title()
+        # 1. Add to Saved List (if not exists)
+        if new_topic not in st.session_state.saved_custom_topics:
+            st.session_state.saved_custom_topics.insert(0, new_topic)
+        # 2. Automatically Select it
+        if new_topic not in st.session_state.active_custom:
+            st.session_state.active_custom = st.session_state.active_custom + [new_topic]
+    st.session_state.search_input = ""
+
+def remove_custom_topics():
+    # Remove selected items from the SAVED list
+    for t in st.session_state.topics_to_delete:
+        if t in st.session_state.saved_custom_topics:
+            st.session_state.saved_custom_topics.remove(t)
+        # Also remove from active selection if it was there
+        if t in st.session_state.active_custom:
+            st.session_state.active_custom.remove(t)
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
@@ -129,60 +149,53 @@ st.markdown("""
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
 
-# --- CALLBACK FUNCTIONS ---
+# --- SEARCH & CUSTOM TOPICS ---
 
-def add_custom_topic():
-    """Adds a new topic from the search bar."""
-    raw_query = st.session_state.search_input.strip()
-    if raw_query:
-        # Title case to look nice (e.g. "bitcoin" -> "Bitcoin")
-        new_topic = raw_query.title()
-        
-        # 1. Add to Custom List (Insert at TOP so it's first)
-        if new_topic not in st.session_state.custom_topics:
-            st.session_state.custom_topics.insert(0, new_topic)
-            
-        # 2. Add to Selection (CRITICAL: Explicitly re-assign list to force update)
-        if new_topic not in st.session_state.selected_topics:
-            st.session_state.selected_topics = st.session_state.selected_topics + [new_topic]
-            
-    # Clear input
-    st.session_state.search_input = ""
-
-def clean_custom_topics():
-    """Removes custom topics if they are deselected."""
-    current_selection = st.session_state.selected_topics
-    # Check if any custom topic was unchecked
-    for topic in st.session_state.custom_topics[:]:
-        if topic not in current_selection:
-            st.session_state.custom_topics.remove(topic)
-
-# --- SEARCH BAR ---
+# 1. SEARCH BAR
 st.text_input(
-    "Search to add a topic:", 
+    "Add a custom feed:", 
     key="search_input",
-    on_change=add_custom_topic, # Runs when you hit Enter
+    on_change=add_custom_topic,
     placeholder="e.g. Nvidia, Bitcoin, Election..."
 )
 
-# --- CHIP DISPLAY ---
-# Combine Custom + Default (Custom first)
-all_options = st.session_state.custom_topics + DEFAULT_TOPICS
-# Deduplicate while preserving order
-all_options = list(dict.fromkeys(all_options))
+# 2. CUSTOM CHIPS SECTION (Only if user has added some)
+if st.session_state.saved_custom_topics:
+    st.write("**My Feeds** (🔎 Custom)")
+    st.pills(
+        "My Feeds",
+        options=st.session_state.saved_custom_topics,
+        key="active_custom",
+        selection_mode="multi",
+        label_visibility="collapsed"
+    )
+    
+    # "Delete" Management
+    with st.expander("🗑️ Remove Custom Feeds"):
+        st.multiselect(
+            "Select feeds to permanently delete:",
+            options=st.session_state.saved_custom_topics,
+            key="topics_to_delete",
+            on_change=remove_custom_topics
+        )
 
+# 3. DEFAULT CHIPS SECTION
+st.write("**Trending Topics** (🔥 Popular)")
 st.pills(
-    "Active Feeds (Deselect to remove):",
-    options=all_options,
-    key="selected_topics", 
-    on_change=clean_custom_topics, # Runs when you click a chip
-    selection_mode="multi"
+    "Trending Topics",
+    options=DEFAULT_TOPICS,
+    key="active_default",
+    selection_mode="multi",
+    label_visibility="collapsed"
 )
 
 # --- QUERY BUILDING ---
-if st.session_state.selected_topics:
-    # Wrap multi-word topics in quotes for exact matching
-    formatted_topics = [f'"{t}"' if " " in t else t for t in st.session_state.selected_topics]
+# Combine both lists
+combined_selection = st.session_state.active_default + st.session_state.active_custom
+
+if combined_selection:
+    # Wrap in quotes for exact matching logic
+    formatted_topics = [f'"{t}"' if " " in t else t for t in combined_selection]
     api_query = " OR ".join(formatted_topics)
 else:
     api_query = "General"
@@ -224,7 +237,6 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
-            # FETCH (Auto-cached if query string matches)
             articles = fetch_news(
                 api_query, 
                 st.session_state.applied_sources, 
