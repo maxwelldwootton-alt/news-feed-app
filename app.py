@@ -4,6 +4,7 @@ from textblob import TextBlob
 from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
+# ⚠️ REPLACE THIS WITH YOUR ACTUAL KEY OR USE st.secrets["NEWS_API_KEY"]
 API_KEY = '68bf6222804f431d9f3697e73d759099' 
 
 # Map the API 'slugs' to clean Display Names
@@ -27,7 +28,6 @@ NEUTRAL_SOURCES = [
 ]
 
 # --- INITIALIZE SESSION STATE ---
-# This controls the "Applied" state (what the feed is actually showing)
 if 'applied_topic' not in st.session_state:
     st.session_state.applied_topic = "Technology"
     st.session_state.applied_start_date = date.today() - timedelta(days=7)
@@ -36,7 +36,8 @@ if 'applied_topic' not in st.session_state:
     st.session_state.applied_emotional = True
 
 # --- FUNCTIONS ---
-def fetch_news(query, sources, from_date, to_date):
+@st.cache_data(ttl=300) # Caches results for 5 minutes to save API calls
+def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
     params = {
         'q': query if query else 'general',
@@ -45,17 +46,19 @@ def fetch_news(query, sources, from_date, to_date):
         'to': to_date.strftime('%Y-%m-%d'),
         'language': 'en',
         'sortBy': 'publishedAt',
-        'apiKey': API_KEY
+        'apiKey': api_key
     }
     try:
         response = requests.get(url, params=params)
         data = response.json()
-        if data['status'] == 'ok':
+        if data.get('status') == 'ok':
             articles = data['articles']
-            articles.sort(key=lambda x: x['publishedAt'], reverse=True)
-            return articles
+            # Filter out removed articles immediately
+            valid_articles = [a for a in articles if a['title'] != "[Removed]"]
+            valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
+            return valid_articles
         return []
-    except:
+    except Exception as e:
         return []
 
 def analyze_sentiment(text):
@@ -63,41 +66,87 @@ def analyze_sentiment(text):
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
 # --- APP CONFIGURATION ---
-st.set_page_config(page_title="Pure News Feed", page_icon="📰", layout="centered")
+st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
-# --- CSS STYLING (Dark Mode + Blue Theme) ---
+# --- CSS STYLING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
     /* Card Styles */
+    .card-container {
+        background-color: #262730; 
+        padding: 20px; 
+        border-radius: 10px; 
+        margin-bottom: 20px; 
+        border: 1px solid #363636;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    
     .headline { 
         font-family: 'Georgia', serif; 
         font-size: 22px; 
         font-weight: bold; 
         color: #E0E0E0; 
         text-decoration: none; 
+        line-height: 1.4;
         transition: color 0.2s;
     }
     .headline:hover {
-        color: #3B82F6; 
+        color: #60A5FA; 
     }
+    
+    /* Metadata Container */
     .metadata { 
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
         font-family: 'Arial', sans-serif; 
         font-size: 12px; 
         color: #A0A0A0; 
     }
-    .card-container {
-        background-color: #262730; 
-        padding: 15px; 
-        border-radius: 8px; 
-        margin-bottom: 20px; 
-        border: 1px solid #363636;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    
+    /* CHIP STYLES */
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: white;
     }
     
-    /* Button Transition */
+    .chip-source {
+        background-color: #374151; /* Dark Grey */
+        color: #E5E7EB;
+        border: 1px solid #4B5563;
+    }
+    
+    .chip-neutral {
+        background-color: #059669; /* Emerald Green */
+        border: 1px solid #10B981;
+    }
+    
+    .chip-emotional {
+        background-color: #DC2626; /* Red */
+        border: 1px solid #EF4444;
+    }
+
+    .description-text {
+        font-family: 'Arial', sans-serif;
+        font-size: 14px;
+        margin-top: 15px;
+        color: #D1D5DB;
+        line-height: 1.6;
+    }
+    
+    /* Sidebar Button Styling */
     section[data-testid="stSidebar"] .stButton button {
         width: 100%;
         border-radius: 5px;
@@ -117,18 +166,15 @@ with st.sidebar:
     # --- 1. TOPIC SELECTION ---
     SUGGESTED_TOPICS = ["Technology", "Artificial Intelligence", "Stock Market", "Crypto", "Politics", "Space Exploration"]
 
-    # Initialize Defaults: Technology selected, Search box empty
     if "topic_pills" not in st.session_state:
         st.session_state.topic_pills = "Technology"
     if "custom_search" not in st.session_state:
         st.session_state.custom_search = ""
 
-    # Callback: If Pill clicked -> Clear Text Input
     def on_pill_change():
         if st.session_state.topic_pills:
             st.session_state.custom_search = ""
             
-    # Callback: If Text typed -> Deselect Pill
     def on_text_change():
         if st.session_state.custom_search:
             st.session_state.topic_pills = None
@@ -147,13 +193,12 @@ with st.sidebar:
         on_change=on_text_change
     )
     
-    # Logic: Decide which topic to use for the API
     if st.session_state.custom_search:
         current_topic = st.session_state.custom_search
     elif st.session_state.topic_pills:
         current_topic = st.session_state.topic_pills
     else:
-        current_topic = "Technology" # Fallback if user clears everything
+        current_topic = "Technology"
     
     st.divider()
 
@@ -201,7 +246,7 @@ with st.sidebar:
         current_emotional != st.session_state.applied_emotional):
         has_changes = True
 
-    # --- RENDER REFRESH BUTTON ---
+    # --- REFRESH BUTTON ---
     if st.button("Refresh Feed"):
         st.session_state.applied_topic = current_topic
         st.session_state.applied_start_date = current_start
@@ -210,7 +255,6 @@ with st.sidebar:
         st.session_state.applied_emotional = current_emotional
         st.rerun()
 
-    # --- DYNAMIC CSS (Modern Blue) ---
     if has_changes:
         st.markdown("""
             <style>
@@ -225,7 +269,7 @@ with st.sidebar:
 # --- MAIN FEED ---
 
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
-    st.warning("⚠️ Please enter a valid NewsAPI key.")
+    st.warning("⚠️ Please enter a valid NewsAPI key in the code configuration.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
@@ -235,21 +279,21 @@ else:
                 st.session_state.applied_topic, 
                 st.session_state.applied_sources, 
                 st.session_state.applied_start_date, 
-                st.session_state.applied_end_date
+                st.session_state.applied_end_date,
+                API_KEY
             )
             
             count = 0
             if not articles:
-                st.info("No articles found.")
+                st.info("No articles found for this topic/timeframe.")
                 
             for article in articles:
                 title = article['title']
-                if title == "[Removed]": continue
                 
                 # Date Formatting
                 iso_date = article['publishedAt'][:10]
                 date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
-                published_formatted = date_obj.strftime('%m/%d/%Y')
+                published_formatted = date_obj.strftime('%b %d, %Y')
                 
                 # Source Formatting
                 api_source_name = article['source']['name']
@@ -265,23 +309,31 @@ else:
                     continue
                 
                 count += 1
-                css_class = "emotional" if is_emotional else "neutral"
-                emotional_label = "⚠️ Opinion/High Emotion" if is_emotional else "✅ Objective Tone"
-                emotional_color = "#ef4444" if is_emotional else "#2ecc71" # Red vs Green
                 
-                # Dark Mode Card HTML
+                # Determine Chips
+                source_chip = f'<span class="chip chip-source">{display_source}</span>'
+                
+                if is_emotional:
+                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>'
+                else:
+                    sentiment_chip = '<span class="chip chip-neutral">✅ Objective</span>'
+                
+                # HTML Card
                 st.markdown(f"""
-                <div class="card-container {css_class}">
+                <div class="card-container">
                     <a href="{article['url']}" target="_blank" class="headline">{title}</a>
-                    <br><br>
                     <div class="metadata">
-                        <b>{display_source}</b> | {published_formatted} | <span style="color: {emotional_color}">{emotional_label}</span>
+                        {source_chip}
+                        <span style="color: #6B7280; font-weight: bold;">•</span>
+                        {sentiment_chip}
+                        <span style="color: #6B7280; font-weight: bold;">•</span>
+                        <span>{published_formatted}</span>
                     </div>
-                    <p style="font-family: Arial; font-size: 14px; margin-top: 10px; color: #D1D5DB;">
+                    <p class="description-text">
                         {description if description else ''}
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
                 
             if count == 0 and articles:
-                st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
+                st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'. Try unchecking the filter in the sidebar.")
