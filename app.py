@@ -2,9 +2,14 @@ import streamlit as st
 import requests
 from textblob import TextBlob
 from datetime import datetime, timedelta, date
+import google.generativeai as genai
 
 # --- CONFIGURATION ---
-API_KEY = '68bf6222804f431d9f3697e73d759099' 
+NEWS_API_KEY = '68bf6222804f431d9f3697e73d759099' 
+GEMINI_API_KEY = 'AIzaSyDcD9VTxZ7-LwBjlySUN02UbX9UxnQy4rY'
+
+# Initialize Gemini
+genai.configure(api_key=GEMINI_API_KEY)
 
 SOURCE_MAPPING = {
     'reuters': 'Reuters',
@@ -112,6 +117,28 @@ def classify_article(text, active_defaults, active_customs):
         found_tags.append("General")
         
     return list(dict.fromkeys(found_tags))
+
+# --- GEMINI AI CACHED FUNCTION ---
+@st.cache_data(show_spinner=False)
+def get_gemini_summary(prompt_data_string):
+    """Sends the formatted article list to Gemini and caches the response."""
+    if not prompt_data_string.strip():
+        return "No articles available to summarize."
+        
+    try:
+        model = genai.GenerativeModel('gemini-3-flash-preview')
+        prompt = f"""You are a professional news briefing assistant. 
+I am providing you with a list of current news articles. Each article includes its assigned Categories, Title, and Description.
+Please provide a well-structured, easy-to-read summary of the news, grouping the insights by Category. 
+Keep it engaging, objective, and concise. Use markdown formatting (headers, bullet points) for readability.
+
+Here is the news data:
+{prompt_data_string}
+"""
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"⚠️ An error occurred while generating the AI Overview: {e}"
 
 # --- CALLBACKS ---
 def add_custom_topic():
@@ -291,41 +318,61 @@ with st.sidebar:
 
 st.divider()
 
-# --- MAIN APP BODY (TABS) ---
-if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
+# --- MAIN APP BODY (TABS & PRE-PROCESSING) ---
+if not NEWS_API_KEY:
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
-            # The fetch happens BEFORE the tabs so both tabs can use the same data
-            articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, API_KEY)
+            raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             
+            # 1. PRE-PROCESS ARTICLES (Filter & Tag once)
+            processed_articles = []
+            priority_list = st.session_state.active_custom + st.session_state.active_default
+            
+            for article in raw_articles:
+                title = article.get('title') or ""
+                description = article.get('description') or ""
+                content = article.get('content') or ""
+                text_to_analyze = f"{title} {description} {content}"
+                
+                # Check Sentiment
+                subjectivity, polarity = analyze_sentiment(text_to_analyze)
+                is_emotional = subjectivity > 0.5
+                if current_emotional and is_emotional: 
+                    continue # Skip this article
+                
+                # Tag and Sort
+                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                
+                # Store computed data safely in the dictionary
+                article['computed_tags'] = article_tags
+                article['is_emotional'] = is_emotional
+                processed_articles.append(article)
+
             # Create the Tabs
             tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
             
             # --- TAB 1: THE FEED ---
             with tab_feed:
-                count = 0
-                if not articles:
-                    st.info("No articles found matching these topics.")
+                if not processed_articles:
+                    if raw_articles:
+                        st.warning("Articles were found, but all were hidden by the 'Sensationalism Filter'.")
+                    else:
+                        st.info("No articles found matching these topics.")
                     
-                for article in articles:
+                for article in processed_articles:
                     title = article.get('title') or ""
                     url = article.get('url') or "#"
                     image_url = article.get('urlToImage')
                     description = article.get('description') or ""
-                    content = article.get('content') or ""
                     
-                    text_to_analyze = f"{title} {description} {content}"
-                    
-                    # --- AUTO-TAGGING & SORTING ---
-                    article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
-                    priority_list = st.session_state.active_custom + st.session_state.active_default
-                    article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
-                    
+                    # HTML Tags
                     tags_html = ""
+                    article_tags = article['computed_tags']
                     visible_tags = article_tags[:2]
                     hidden_tags = article_tags[2:]
                     overflow_count = len(hidden_tags)
@@ -337,35 +384,38 @@ else:
                         tooltip_text = ", ".join(hidden_tags)
                         tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
                     
-                    # --- SENTIMENT ---
-                    subjectivity, polarity = analyze_sentiment(text_to_analyze)
-                    is_emotional = subjectivity > 0.5
-                    if current_emotional and is_emotional: continue
-                    count += 1
-                    
-                    # --- RENDER ---
+                    # Formatting
                     iso_date = article.get('publishedAt', '')[:10]
-                    if iso_date:
-                        date_obj = datetime.strptime(iso_date, '%Y-%m-%d')
-                        published_formatted = date_obj.strftime('%b %d')
-                    else:
-                        published_formatted = "Unknown Date"
+                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
                     
                     api_source_name = article.get('source', {}).get('name', 'Unknown')
                     api_source_id = article.get('source', {}).get('id', '') 
                     display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
                     
                     source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if is_emotional else '<span class="chip chip-neutral">✅ Objective</span>'
+                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
                     img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
                     
+                    # Render Feed Card
                     st.markdown(f"""<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>""", unsafe_allow_html=True)
-                    
-                if count == 0 and articles:
-                    st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
                     
             # --- TAB 2: AI OVERVIEW ---
             with tab_ai:
                 st.header("✨ AI Overview")
-                st.write("A Gemini-powered summary of the top articles grouped by category will appear here.")
-                st.info("Coming soon: Summarization logic using the Google Gemini API.")
+                
+                if not processed_articles:
+                    st.info("No articles available to summarize.")
+                else:
+                    # To save tokens, we'll only send the top 30 articles to Gemini
+                    prompt_lines = []
+                    for a in processed_articles[:30]:
+                        cat_string = ", ".join(a['computed_tags'][:2])
+                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {a.get('title')} | Desc: {a.get('description')}")
+                    
+                    prompt_data_string = "\n".join(prompt_lines)
+                    
+                    # Add a button to prevent auto-firing to the API unless the user wants it
+                    if st.button("Generate Summary", type="primary"):
+                        with st.spinner("Gemini is reading the news..."):
+                            summary_markdown = get_gemini_summary(prompt_data_string)
+                            st.markdown(summary_markdown)
