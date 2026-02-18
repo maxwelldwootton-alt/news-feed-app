@@ -8,7 +8,6 @@ import google.generativeai as genai
 # 🔒 Pulling keys securely from Streamlit Secrets
 NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-#
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -32,15 +31,16 @@ DEFAULT_TOPICS = [
 ]
 
 # --- KEYWORD MATCHING ENGINE ---
+# Highly refined to prevent generic words (like "court" or "rate") from mis-tagging articles
 TOPIC_KEYWORDS = {
     "Technology": ["tech", "software", "hardware", "apple", "google", "microsoft", "internet", "device", "silicon", "meta", "amazon", "server", "cyber", "data", "app", "mobile", "ios", "android"],
     "Artificial Intelligence": ["ai", "artificial intelligence", "llm", "gpt", "openai", "machine learning", "neural", "nvidia", "altman", "chatbot", "generative"],
-    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "rate", "fed", "trading", "investor", "bull", "bear", "wall st", "ipo", "shares", "revenue", "profit", "quarterly"],
+    "Stock Market": ["stock", "market", "dow", "nasdaq", "s&p", "economy", "fed", "trading", "investor", "wall st", "ipo", "shares", "revenue", "profit", "quarterly"],
     "Crypto": ["crypto", "bitcoin", "btc", "ethereum", "blockchain", "token", "coinbase", "binance", "wallet", "web3", "defi"],
-    "Politics": ["politics", "biden", "trump", "congress", "senate", "law", "election", "campaign", "white house", "democrat", "republican", "gop", "bill", "vote", "voter"],
-    "Epstein Files": ["epstein", "ghislaine", "maxwell", "document", "court", "list", "judge", "testimony", "deposition"],
-    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor", "plant", "energy", "radiation"],
-    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket", "launch", "satellite", "astronaut", "universe"]
+    "Politics": ["politics", "biden", "trump", "congress", "senate", "election", "campaign", "white house", "democrat", "republican", "gop", "voter"],
+    "Epstein Files": ["epstein", "ghislaine", "maxwell"],
+    "Nuclear": ["nuclear", "atomic", "uranium", "fusion", "fission", "reactor"],
+    "Space Exploration": ["space", "nasa", "spacex", "moon", "mars", "orbit", "galaxy", "rocket", "satellite", "astronaut", "universe"]
 }
 
 # --- INITIALIZE SESSION STATE ---
@@ -54,11 +54,9 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    # 🕒 CHANGED: Default exactly to yesterday's date
     yesterday = date.today() - timedelta(days=1)
     st.session_state.applied_start_date = yesterday
     st.session_state.applied_end_date = yesterday
-    
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
@@ -66,10 +64,8 @@ if 'applied_start_date' not in st.session_state:
 @st.cache_data(ttl=3600, show_spinner=False) 
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
-    
     if sources:
         sources.sort()
-        
     params = {
         'q': query if query else 'general',
         'sources': ','.join(sources),
@@ -105,6 +101,7 @@ def classify_article(text, active_defaults, active_customs):
         if topic.lower() not in keywords:
             keywords.append(topic.lower())
         for k in keywords:
+            # We use string matching to ensure the keyword exists
             if k in text_lower:
                 found_tags.append(topic)
                 break 
@@ -113,9 +110,6 @@ def classify_article(text, active_defaults, active_customs):
         if topic.lower() in text_lower:
             found_tags.append(topic)
             
-    if not found_tags:
-        found_tags.append("General")
-        
     return list(dict.fromkeys(found_tags))
 
 @st.cache_data(show_spinner=False)
@@ -241,19 +235,13 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
+# --- QUERY BUILDING ---
 combined_selection = st.session_state.active_default + st.session_state.active_custom
-if combined_selection:
-    formatted_topics = [f'"{t}"' if " " in t else t for t in combined_selection]
-    api_query = " OR ".join(formatted_topics)
-else:
-    api_query = "General"
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
-    
-    # 🕒 CHANGED: Default UI widget to Yesterday
     yesterday = today - timedelta(days=1)
     current_date_range = st.date_input(
         "Select Date Range", 
@@ -263,7 +251,6 @@ with st.sidebar:
         format="MM/DD/YYYY"
     )
     
-    # Handle the date tuple correctly (Streamlit returns a 1-length tuple if only one day is clicked)
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
     elif len(current_date_range) == 1:
@@ -287,11 +274,21 @@ st.divider()
 # --- MAIN APP BODY (TABS & PRE-PROCESSING) ---
 if not NEWS_API_KEY:
     st.warning("⚠️ Please enter a valid NewsAPI key.")
+elif not combined_selection:
+    # Stop processing if no chips are selected
+    st.warning("👈 Please select at least one feed category above to view articles.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         with st.spinner("Loading wire..."):
+            
+            # SAFE API QUERY: NewsAPI throws an error if we chain more than 5 OR operators.
+            # We take up to 5 selections for the API, then rely on strict local filtering.
+            safe_selection = combined_selection[:5]
+            formatted_topics = [f'"{t}"' if " " in t else t for t in safe_selection]
+            api_query = " OR ".join(formatted_topics)
+            
             raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             
             processed_articles = []
@@ -303,13 +300,21 @@ else:
                 content = article.get('content') or ""
                 text_to_analyze = f"{title} {description} {content}"
                 
+                # 🛑 STRICT FILTERING: Try to tag the article
+                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
+                
+                # If the article doesn't explicitly match the keywords of an active chip, hide it completely!
+                if not article_tags:
+                    continue
+                
+                # Sort tags based on hierarchy
+                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                
+                # Sentiment check
                 subjectivity, polarity = analyze_sentiment(text_to_analyze)
                 is_emotional = subjectivity > 0.5
                 if current_emotional and is_emotional: 
                     continue 
-                
-                article_tags = classify_article(text_to_analyze, st.session_state.active_default, st.session_state.active_custom)
-                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
                 article['computed_tags'] = article_tags
                 article['is_emotional'] = is_emotional
@@ -321,7 +326,7 @@ else:
             with tab_feed:
                 if not processed_articles:
                     if raw_articles:
-                        st.warning("Articles were found, but all were hidden by the 'Sensationalism Filter'.")
+                        st.warning("Articles were found by the API, but they were hidden by the Sensationalism filter or didn't closely match your exact topics.")
                     else:
                         st.info("No articles found matching these topics.")
                     
