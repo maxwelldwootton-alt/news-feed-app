@@ -5,43 +5,43 @@ import pandas as pd
 from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
-# You will need a free API key from https://newsapi.org/
 API_KEY = 'c85bd651b9c24f97918f8c85ddc4a36f' 
 
-# "Wire Services" are generally considered the most neutral/unbiased
 NEUTRAL_SOURCES = [
-    'reuters', 
-    'associated-press', 
-    'bloomberg', 
-    'axios', 
-    'politico'
+    'reuters', 'associated-press', 'bloomberg', 'axios', 'politico'
 ]
+
+# --- INITIALIZE SESSION STATE ---
+# This ensures the feed only updates when the button is clicked,
+# and allows us to detect "changes" to turn the button green.
+
+if 'applied_topic' not in st.session_state:
+    st.session_state.applied_topic = "Technology"
+    st.session_state.applied_start_date = date.today() - timedelta(days=7)
+    st.session_state.applied_end_date = date.today()
+    st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
+    st.session_state.applied_emotional = True  # Default enabled
 
 # --- FUNCTIONS ---
 
 def fetch_news(query, sources, from_date, to_date):
-    """Fetches news from the selected sources for a specific topic and date range."""
-    
+    """Fetches news using the APPLIED filters."""
     url = "https://newsapi.org/v2/everything"
-    
-    # NewsAPI expects string dates in YYYY-MM-DD format
     params = {
-        'q': query if query else 'general',  # Topic
-        'sources': ','.join(sources),        # Comma-separated sources
+        'q': query if query else 'general',
+        'sources': ','.join(sources),
         'from': from_date.strftime('%Y-%m-%d'),
         'to': to_date.strftime('%Y-%m-%d'),
         'language': 'en',
-        'sortBy': 'publishedAt', # Asks API for newest first
+        'sortBy': 'publishedAt',
         'apiKey': API_KEY
     }
     
     try:
         response = requests.get(url, params=params)
         data = response.json()
-        
         if data['status'] == 'ok':
             articles = data['articles']
-            # DOUBLE CHECK SORTING: Ensure most recent is first (descending order)
             articles.sort(key=lambda x: x['publishedAt'], reverse=True)
             return articles
         else:
@@ -52,11 +52,6 @@ def fetch_news(query, sources, from_date, to_date):
         return []
 
 def analyze_sentiment(text):
-    """
-    Returns a 'Subjectivity' score (0.0 to 1.0).
-    0.0 is very objective (fact-based).
-    1.0 is very subjective (opinion/emotion-based).
-    """
     blob = TextBlob(text)
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
@@ -64,28 +59,22 @@ def analyze_sentiment(text):
 
 st.set_page_config(page_title="Pure News Feed", page_icon="📰", layout="centered")
 
-# Custom CSS to strip away "web app" feel and make it look like paper
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    .reportview-container {
-        background: #f0f2f6;
-    }
-    .headline {
-        font-family: 'Georgia', serif;
-        font-size: 22px;
-        font-weight: bold;
-        color: #2c3e50;
-        text-decoration: none;
-    }
-    .metadata {
-        font-family: 'Arial', sans-serif;
-        font-size: 12px;
-        color: #7f8c8d;
-    }
+    .reportview-container { background: #f0f2f6; }
+    .headline { font-family: 'Georgia', serif; font-size: 22px; font-weight: bold; color: #2c3e50; text-decoration: none; }
+    .metadata { font-family: 'Arial', sans-serif; font-size: 12px; color: #7f8c8d; }
     .neutral { border-left: 5px solid #2ecc71; padding-left: 10px; }
     .emotional { border-left: 5px solid #e74c3c; padding-left: 10px; }
+    
+    /* CSS for the Green "Ready to Refresh" Button */
+    .stButton button.green-button {
+        background-color: #2ecc71 !important;
+        color: white !important;
+        border: 1px solid #27ae60 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -97,97 +86,124 @@ st.caption("No algorithms. No comments. Just headlines.")
 with st.sidebar:
     st.header("Filters")
     
-    # Topic Input
-    user_topic = st.text_input("Topic / Trend", value="Technology")
+    # 1. Inputs (User changes these, but they don't update feed yet)
+    current_topic = st.text_input("Topic / Trend", value="Technology")
     
-    # --- DATE RANGE SELECTOR ---
     st.subheader("Timeframe")
     today = date.today()
-    last_week = today - timedelta(days=7)
-    
-    # Date Input returns a tuple (start, end)
-    date_range = st.date_input(
+    current_date_range = st.date_input(
         "Select Date Range",
-        value=(last_week, today),
-        min_value=today - timedelta(days=29), # NewsAPI Free tier limit is usually ~1 month
+        value=(today - timedelta(days=7), today),
+        min_value=today - timedelta(days=29),
         max_value=today
     )
-    
-    # Handle the date range tuple logic
-    if len(date_range) == 2:
-        start_date, end_date = date_range
+    # Handle tuple unpacking safely
+    if len(current_date_range) == 2:
+        current_start, current_end = current_date_range
     else:
-        # If user is in the middle of picking dates, just use today for both to prevent errors
-        start_date, end_date = today, today
+        current_start, current_end = today, today
 
-    # Source Selection
     st.subheader("Trusted Sources")
-    st.info("Defaulted to Wire Services for minimal bias.")
-    selected_sources = st.multiselect(
+    all_options = ['reuters', 'associated-press', 'bloomberg', 'the-verge', 'bbc-news', 'al-jazeera-english']
+    current_sources = st.multiselect(
         "Select Sources:",
-        options=['reuters', 'associated-press', 'bloomberg', 'the-verge', 'bbc-news', 'al-jazeera-english'],
-        default=['reuters', 'associated-press', 'bloomberg', 'the-verge', 'bbc-news', 'al-jazeera-english']
+        options=all_options,
+        default=all_options
     )
     
-    # Emotional Filtering (Now Defaults to TRUE)
     st.subheader("Sensationalism Filter")
-    hide_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
+    current_emotional = st.checkbox("Hide emotionally charged headlines?", value=True)
     
-    if st.button("Refresh Feed"):
+    # 2. Detect Changes
+    # We compare the "Current" sidebar values with the "Applied" session state values
+    has_changes = False
+    if (current_topic != st.session_state.applied_topic or
+        current_start != st.session_state.applied_start_date or
+        current_end != st.session_state.applied_end_date or
+        set(current_sources) != set(st.session_state.applied_sources) or
+        current_emotional != st.session_state.applied_emotional):
+        has_changes = True
+
+    # 3. Dynamic Button Styling
+    # If changes are detected, we inject CSS to turn the button green
+    if has_changes:
+        st.markdown("""
+            <style>
+            div[data-testid="stButton"] > button {
+                background-color: #2ecc71 !important;
+                color: white !important;
+                border: none !important;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            }
+            div[data-testid="stButton"] > button:hover {
+                 background-color: #27ae60 !important;
+                 color: white !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        button_label = "Refresh Feed (Changes Detected)"
+    else:
+        button_label = "Refresh Feed"
+
+    # 4. Button Logic
+    if st.button(button_label):
+        # Update the Session State with the new values
+        st.session_state.applied_topic = current_topic
+        st.session_state.applied_start_date = current_start
+        st.session_state.applied_end_date = current_end
+        st.session_state.applied_sources = current_sources
+        st.session_state.applied_emotional = current_emotional
+        
+        # Rerun to clear the "has_changes" flag and update the feed
         st.rerun()
 
 # --- MAIN FEED ---
+# Uses st.session_state variables so the feed acts "frozen" until button click
 
 if not API_KEY or API_KEY == 'YOUR_NEWSAPI_KEY_HERE':
-    st.warning("⚠️ Please enter a valid NewsAPI key in the code to start.")
+    st.warning("⚠️ Please enter a valid NewsAPI key.")
 else:
-    with st.spinner(f"Fetching wire updates for '{user_topic}' from {start_date} to {end_date}..."):
+    with st.spinner(f"Fetching wire updates for '{st.session_state.applied_topic}'..."):
         
-        # Pass the specific dates to the function
-        articles = fetch_news(user_topic, selected_sources, start_date, end_date)
+        articles = fetch_news(
+            st.session_state.applied_topic, 
+            st.session_state.applied_sources, 
+            st.session_state.applied_start_date, 
+            st.session_state.applied_end_date
+        )
         
         if not articles:
-            st.info("No articles found in this date range. Try broadening the search.")
+            st.info("No articles found for these filters.")
         
         count = 0
         for article in articles:
             title = article['title']
-            source = article['source']['name']
-            url = article['url']
-            published = article['publishedAt'][:10] # Extract YYYY-MM-DD
+            if title == "[Removed]": continue
+            
             description = article['description']
-            
-            # Skip removed content
-            if title == "[Removed]":
-                continue
-
-            # Analyze Tone
             subjectivity, polarity = analyze_sentiment(title + " " + (description or ""))
-            
-            # Determine if we show it
             is_emotional = subjectivity > 0.5
             
-            if hide_emotional and is_emotional:
+            # Use SESSION STATE filter
+            if st.session_state.applied_emotional and is_emotional:
                 continue
             
             count += 1
-                
-            # Render Article
             css_class = "emotional" if is_emotional else "neutral"
             emotional_label = "⚠️ Opinion/High Emotion" if is_emotional else "✅ Objective Tone"
             
             st.markdown(f"""
             <div class="{css_class}" style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <a href="{url}" target="_blank" class="headline">{title}</a>
+                <a href="{article['url']}" target="_blank" class="headline">{title}</a>
                 <br><br>
                 <div class="metadata">
-                    <b>{source}</b> | {published} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
+                    <b>{article['source']['name']}</b> | {article['publishedAt'][:10]} | <span style="color: {'#e74c3c' if is_emotional else '#27ae60'}">{emotional_label}</span>
                 </div>
                 <p style="font-family: Arial; font-size: 14px; margin-top: 10px; color: #34495e;">
                     {description if description else ''}
                 </p>
             </div>
             """, unsafe_allow_html=True)
-        
+            
         if count == 0 and articles:
-            st.warning("Articles were found, but all of them were filtered out as 'Emotional'. Try unchecking the filter to see them.")
+            st.warning("Articles found, but all were filtered by the 'Sensationalism Filter'.")
