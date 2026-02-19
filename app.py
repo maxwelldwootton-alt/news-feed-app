@@ -39,14 +39,13 @@ if 'active_default' not in st.session_state:
 if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
-# 🛑 NEW: Stores the topics that were actually submitted to the API
+# Stores the topics that were actually submitted to the API
 if 'applied_topics' not in st.session_state:
     st.session_state.applied_topics = DEFAULT_TOPICS.copy()
 
 if 'applied_start_date' not in st.session_state:
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
-    # 🕒 Start date is yesterday, End date is today
     st.session_state.applied_start_date = today - timedelta(days=1)
     st.session_state.applied_end_date = today 
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
@@ -92,12 +91,13 @@ def classify_article(text, applied_topics):
     return list(dict.fromkeys(found_tags))
 
 @st.cache_data(show_spinner=False)
-def get_gemini_summary(prompt_data_string):
+def get_gemini_summary(prompt_data_string, date_context): # 🛑 Updated to accept date context
     if not prompt_data_string.strip():
         return "No articles available to summarize."
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview')
         prompt = f'''You are a professional news briefing assistant. 
+The following news articles were published between {date_context}.
 I am providing you with a list of current news articles. Each article includes its assigned Categories, Title, and Description.
 Please provide a well-structured, easy-to-read summary of the news, grouping the insights by Category. 
 Keep it engaging, objective, and concise. Use markdown formatting (headers, bullet points) for readability.
@@ -192,45 +192,7 @@ st.markdown('''
     </style>
 ''' , unsafe_allow_html=True)
 
-st.title("📰 The Wire")
-st.caption("No algorithms. No comments. Just headlines.")
-
-col_search, col_edit = st.columns([4, 1])
-with col_search:
-    st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Bitcoin, Election...", label_visibility="collapsed")
-with col_edit:
-    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
-
-if st.session_state.saved_custom_topics:
-    st.write("**My Feeds**")
-    if is_edit_mode:
-        st.warning("🗑️ **Delete Mode Active:** Uncheck to delete.")
-        def on_delete_change():
-            remaining = st.session_state.temp_delete_widget
-            st.session_state.saved_custom_topics = remaining
-            st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
-        st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
-    else:
-        st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
-
-st.write("**Trending Topics**")
-st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
-
-# 🛑 NEW: The Refresh Feed button
-if st.button("🔄 Refresh Feed", type="primary", use_container_width=True):
-    st.session_state.applied_topics = st.session_state.active_default + st.session_state.active_custom
-    st.rerun()
-
-# --- EXACT QUERY BUILDER ---
-query_parts = []
-for topic in st.session_state.applied_topics:
-    part = f'"{topic}"' 
-    if len(" OR ".join(query_parts + [part])) < 450: 
-        query_parts.append(part)
-
-api_query = " OR ".join(query_parts) if query_parts else "General"
-
-# --- SIDEBAR ---
+# --- SIDEBAR (Moved up so the main button can read its values!) ---
 with st.sidebar:
     st.header("Advanced Filters")
     
@@ -261,12 +223,51 @@ with st.sidebar:
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
-    
-    if st.button("Update Timeframe/Sources", type="primary"):
-         st.session_state.applied_start_date = current_start
-         st.session_state.applied_end_date = current_end
-         st.session_state.applied_sources = current_sources
-         st.rerun()
+    # 🛑 The redundant sidebar button has been deleted!
+
+# --- MAIN UI ---
+st.title("📰 The Wire")
+st.caption("No algorithms. No comments. Just headlines.")
+
+col_search, col_edit = st.columns([4, 1])
+with col_search:
+    st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Bitcoin, Election...", label_visibility="collapsed")
+with col_edit:
+    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
+
+if st.session_state.saved_custom_topics:
+    st.write("**My Feeds**")
+    if is_edit_mode:
+        st.warning("🗑️ **Delete Mode Active:** Uncheck to delete.")
+        def on_delete_change():
+            remaining = st.session_state.temp_delete_widget
+            st.session_state.saved_custom_topics = remaining
+            st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
+        st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
+    else:
+        st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
+
+st.write("**Trending Topics**")
+st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
+
+# 🛑 NEW: The ONE Refresh Feed button that controls everything
+if st.button("🔄 Refresh Feed", type="primary", use_container_width=True):
+    # Lock in the topics
+    st.session_state.applied_topics = st.session_state.active_default + st.session_state.active_custom
+    # Lock in the sidebar filters
+    st.session_state.applied_start_date = current_start
+    st.session_state.applied_end_date = current_end
+    st.session_state.applied_sources = current_sources
+    st.rerun()
+
+# --- EXACT QUERY BUILDER ---
+query_parts = []
+for topic in st.session_state.applied_topics:
+    part = f'"{topic}"' 
+    if len(" OR ".join(query_parts + [part])) < 450: 
+        query_parts.append(part)
+
+api_query = " OR ".join(query_parts) if query_parts else "General"
 
 st.divider()
 
@@ -316,7 +317,6 @@ else:
                     else:
                         st.info("No articles found matching these topics on the selected dates.")
                 else:
-                    # 📈 ADDED: Article count
                     st.caption(f"Showing **{len(processed_articles)}** articles")
                     
                 for article in processed_articles:
@@ -370,5 +370,7 @@ else:
                     
                     if st.button("Generate Summary", type="primary"):
                         with st.spinner("Gemini is reading the news..."):
-                            summary_markdown = get_gemini_summary(prompt_data_string)
+                            # 🛑 Passes the exact date range into the Gemini prompt
+                            date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
+                            summary_markdown = get_gemini_summary(prompt_data_string, date_context)
                             st.markdown(summary_markdown)
