@@ -67,7 +67,7 @@ if 'ai_summary_signature' not in st.session_state:
 
 # --- FUNCTIONS ---
 # 🌟 12-Hour Cache & Parallel Fetching
-@st.cache_data(ttl=timedelta(hours=12), show_spinner=False)
+@st.cache_data(ttl=timedelta(hours=6), show_spinner=False)
 def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
     if not topics:
         topics = ["General"]
