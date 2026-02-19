@@ -69,13 +69,11 @@ if 'ai_summary_signature' not in st.session_state:
 # 🌟 6-Hour Cache & Parallel Fetching
 @st.cache_data(ttl=timedelta(hours=6), show_spinner=False)
 def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
-    # If no topics, fallback to a general query
     if not topics:
         topics = ["General"]
         
     all_articles = []
     
-    # This is the worker function that fetches just ONE topic
     def fetch_single_topic(topic):
         url = "https://newsapi.org/v2/everything"
         params = {
@@ -86,7 +84,7 @@ def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
             'to': to_date.strftime('%Y-%m-%d'),
             'language': 'en',
             'sortBy': 'publishedAt',
-            'pageSize': 100, # Grabs up to 100 articles just for this specific topic
+            'pageSize': 100,
             'apiKey': api_key
         }
         try:
@@ -99,14 +97,12 @@ def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
         except:
             return []
 
-    # Run the API calls for all topics simultaneously
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         results = executor.map(fetch_single_topic, topics)
         
     for res in results:
         all_articles.extend(res)
         
-    # Clean out dead links and sort the massive combined list by date
     valid_articles = [a for a in all_articles if a.get('title') and a['title'] != "[Removed]"]
     valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
     
@@ -172,10 +168,18 @@ st.markdown('''
     
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
+
     /* Hide the Streamlit anchor link icons globally */
     [data-testid="stHeaderActionElements"],
     h1 > div > a, h2 > div > a, h3 > div > a {
         display: none !important;
+    }
+
+    /* 🌟 NEW: Make UI headers unselectable with default cursor for a native app feel */
+    .masthead, .masthead h1, .masthead p, [data-testid="stHeader"] {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        cursor: default !important;
     }
 
     /* Premium Masthead */
@@ -279,6 +283,7 @@ st.markdown('''
     }
 
     /* CSS-only Floating Button */
+    html { scroll-behavior: smooth; }
     .back-to-top {
         position: fixed;
         bottom: 30px;
@@ -400,7 +405,7 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         try:
-            # 🌟 Calling the parallel fetch function with a direct list of topics
+            # Calling the parallel fetch function with a direct list of topics
             raw_articles = fetch_news_parallel(st.session_state.applied_topics, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
         except Exception as e:
             st.error(f"🚨 API Error: {e}")
@@ -477,9 +482,9 @@ else:
                 
                 st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                 
-# --- TAB 2: AI OVERVIEW ---
+        # --- TAB 2: AI OVERVIEW ---
         with tab_ai:
-            st.header("✨ AI Overview", anchor=False)
+            st.header("✨ AI Overview", anchor=False) # 🌟 NEW: Prevents Streamlit from generating an anchor link
             
             if not processed_articles:
                 st.info("No articles available to summarize.")
@@ -511,7 +516,7 @@ else:
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
 
-# 🌟 THE BUTTON: Draws the physical button and snaps instantly to the #top-of-page target
+# THE BUTTON: Draws the physical button and snaps instantly to the #top-of-page target
 st.markdown(
     '''
     <a href="#top-of-page" class="back-to-top" title="Return to top">
