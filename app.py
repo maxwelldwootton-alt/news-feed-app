@@ -199,6 +199,7 @@ def add_custom_topic():
 
     st.session_state.search_input = ""
 
+# 🌟 NEW: Callbacks for the Select All and Clear All buttons
 def select_all_topics():
     st.session_state.active_default = DEFAULT_TOPICS.copy()
     st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
@@ -222,38 +223,11 @@ st.markdown('''
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
 
-    /* Hide the Streamlit anchor link icons globally */
     [data-testid="stHeaderActionElements"],
     h1 > div > a, h2 > div > a, h3 > div > a {
         display: none !important;
     }
 
-    /* 🌟 BETTER CHIP/PILL VISUALS */
-    /* Target UNSELECTED Streamlit Pills */
-    div[data-testid="stPills"] button[data-testid="stBaseButton-pill"] {
-        background-color: transparent !important;
-        color: #6B7280 !important; /* Dimmed Gray Text */
-        border: 1px dashed #4B5563 !important; /* Muted dashed border */
-        transition: all 0.2s ease !important;
-    }
-    
-    /* Target SELECTED Streamlit Pills (Streamlit adds 'Active' to the data-testid) */
-    div[data-testid="stPills"] button[data-testid*="Active"] {
-        background-color: #3B82F6 !important; /* Premium Blue */
-        color: #FFFFFF !important; /* White Text */
-        border: 2px solid #60A5FA !important; /* Bright Blue Border */
-        font-weight: 600 !important;
-        box-shadow: 0 0 12px rgba(59, 130, 246, 0.4) !important; /* Subtle Glow */
-        transition: all 0.2s ease !important;
-    }
-    
-    /* Hover effects for unselected pills */
-    div[data-testid="stPills"] button[data-testid="stBaseButton-pill"]:hover {
-        border: 1px solid #9CA3AF !important;
-        color: #D1D5DB !important;
-    }
-
-    /* Expands the native unselectable UI to the Tabs and AI Overview header */
     .masthead, .masthead h1, .masthead p, 
     [data-testid="stHeader"], 
     [data-testid="stTab"], 
@@ -470,6 +444,7 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
+# 🌟 FIXED: Buttons now execute the callback logic before the UI rebuilds
 col_sel, col_clr, _ = st.columns([1, 1, 3])
 with col_sel:
     st.button("☑️ Select All", on_click=select_all_topics, use_container_width=True, help="Select all custom and trending topics")
