@@ -12,6 +12,7 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
 
 SOURCE_MAPPING = {
+    # --- Existing Sources ---
     'reuters': 'Reuters',
     'associated-press': 'Associated Press',
     'bloomberg': 'Bloomberg',
@@ -19,7 +20,19 @@ SOURCE_MAPPING = {
     'politico': 'Politico',
     'the-verge': 'The Verge',
     'bbc-news': 'BBC News',
-    'al-jazeera-english': 'Al Jazeera'
+    'al-jazeera-english': 'Al Jazeera',
+
+    # --- Category 1: Markets & Money ---
+    'the-wall-street-journal': 'WSJ',
+    'cnbc': 'CNBC',
+    'business-insider': 'Business Insider',
+    'financial-post': 'Financial Post', # Good alternative to FT on NewsAPI
+
+    # --- Category 2: Deep Tech ---
+    'techcrunch': 'TechCrunch',
+    'wired': 'Wired',
+    'ars-technica': 'Ars Technica',
+    'hacker-news': 'Hacker News'
 }
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
