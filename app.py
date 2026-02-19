@@ -410,9 +410,20 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
-    /* Specifically target and hide only the horizontal rule following the tabs */
-div[data-testid="stTab"] + hr {
-    display: none !important;
+    /* Nuclear option for tab dividers and panel lines */
+[data-testid="stTab"], 
+[data-baseweb="tab-list"], 
+[data-baseweb="tab-panel"],
+[data-baseweb="tabs"] > div:first-child {
+    border-bottom: none !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+}
+
+/* Kills the native thin gray line Streamlit draws under the tab row */
+div[role="tablist"] {
+    border-bottom: none !important;
 }
     </style>
 ''', unsafe_allow_html=True)
