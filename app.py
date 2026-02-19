@@ -1,3 +1,10 @@
+That is a much better spot for them UX-wise. Grouping the bulk-action buttons right beneath the things you are actually selecting makes the visual flow a lot more intuitive.
+
+I've taken the entire `col_sel, col_clr, _ = st.columns([1, 1, 3])` block and moved it directly below the `st.pills("Trending Topics"...)` line.
+
+Here is your fully updated code with the buttons in their new home. Copy and paste this directly over your `app.py`:
+
+```python
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
@@ -420,18 +427,6 @@ with col_search:
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
 
-col_sel, col_clr, _ = st.columns([1, 1, 3])
-with col_sel:
-    if st.button("☑️ Select All", use_container_width=True, help="Select all custom and trending topics"):
-        st.session_state.active_default = DEFAULT_TOPICS.copy()
-        st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
-        st.rerun()
-with col_clr:
-    if st.button("☐ Clear All", use_container_width=True, help="Deselect all topics"):
-        st.session_state.active_default = []
-        st.session_state.active_custom = []
-        st.rerun()
-
 if st.session_state.saved_custom_topics:
     st.write("**My Feeds**")
     if is_edit_mode:
@@ -446,6 +441,19 @@ if st.session_state.saved_custom_topics:
 
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
+
+# 🌟 MOVED: Select All / Clear All Topic Controls below Trending Topics
+col_sel, col_clr, _ = st.columns([1, 1, 3])
+with col_sel:
+    if st.button("☑️ Select All", use_container_width=True, help="Select all custom and trending topics"):
+        st.session_state.active_default = DEFAULT_TOPICS.copy()
+        st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
+        st.rerun()
+with col_clr:
+    if st.button("☐ Clear All", use_container_width=True, help="Deselect all topics"):
+        st.session_state.active_default = []
+        st.session_state.active_custom = []
+        st.rerun()
 
 # CONDITIONAL REFRESH BUTTON
 current_selected_topics = st.session_state.active_default + st.session_state.active_custom
@@ -687,3 +695,5 @@ components.html(
     height=0,
     width=0
 )
+
+```
