@@ -80,7 +80,7 @@ TOPIC_KEYWORDS = {
 if 'saved_custom_topics' not in st.session_state:
     st.session_state.saved_custom_topics = []
 
-# 🌟 NEW: Unified state for all active topics
+# Unified state for all active topics
 if 'active_topics' not in st.session_state:
     st.session_state.active_topics = DEFAULT_TOPICS.copy()
 
@@ -427,7 +427,7 @@ with col_search:
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom topics")
 
-# 🌟 Unified Delete Mode for Custom Topics
+# Unified Delete Mode for Custom Topics
 if is_edit_mode and st.session_state.saved_custom_topics:
     st.warning("🗑️ **Delete Mode Active:** Uncheck to permanently remove a custom topic.")
     def on_delete_change():
@@ -438,16 +438,17 @@ if is_edit_mode and st.session_state.saved_custom_topics:
     st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
 
 # 🌟 UNIFIED TOPICS DISPLAY
-col_title, col_sel, col_clr = st.columns([6, 2, 2], vertical_alignment="bottom")
-with col_title:
-    st.write("**Selected Topics**")
+st.write("**Selected Topics**")
+
+all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
+st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
+
+# 🌟 TUCKED BUTTONS: Small columns right below the chips
+col_sel, col_clr, _ = st.columns([1.5, 1.5, 6])
 with col_sel:
     st.button("Select All", on_click=select_all_topics, use_container_width=True)
 with col_clr:
     st.button("Clear All", on_click=clear_all_topics, use_container_width=True)
-
-all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
-st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
 
 # CONDITIONAL REFRESH BUTTON
 current_selected_topics = st.session_state.active_topics
@@ -460,6 +461,7 @@ has_pending_changes = (
 )
 
 if has_pending_changes:
+    st.write("") # Just a little breathing room before the huge blue button
     if st.button("🔄 Update Feed", type="primary", use_container_width=True):
         st.session_state.applied_topics = current_selected_topics
         st.session_state.applied_start_date = current_start
