@@ -665,11 +665,8 @@ if st.session_state.saved_custom_topics:
     chips_html += '</div>'
     st.markdown(chips_html, unsafe_allow_html=True)
 
-    # Hidden pills widget to keep active_custom state in sync when user clicks chips.
-    # We still need st.pills for Streamlit state — we just hide it visually.
-    st.markdown('<div style="display:none">', unsafe_allow_html=True)
-    st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # No st.pills needed here — active_custom is managed purely via session state
+    # by add_custom_topic(), Select All, Clear All, and the deletion handler above.
 
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
