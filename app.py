@@ -101,6 +101,20 @@ if 'ai_summary_text' not in st.session_state:
 if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
 
+# --- QUERY PARAM DELETION HANDLER ---
+# When an X button is clicked on a custom chip, JS sets ?delete_topic=TopicName.
+# We catch it here, remove the topic, clear the param, and rerun cleanly.
+_delete_topic = st.query_params.get("delete_topic")
+if _delete_topic:
+    st.session_state.saved_custom_topics = [
+        t for t in st.session_state.saved_custom_topics if t != _delete_topic
+    ]
+    st.session_state.active_custom = [
+        t for t in st.session_state.active_custom if t != _delete_topic
+    ]
+    st.query_params.clear()
+    st.rerun()
+
 # --- FUNCTIONS ---
 
 def build_api_query(topic):
@@ -484,6 +498,67 @@ st.markdown('''
         color: white;
     }
 
+    /* =========================================================
+       DELETABLE CUSTOM CHIPS
+    ========================================================= */
+    .custom-chips-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .custom-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px 5px 12px;
+        border-radius: 20px;
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: default;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+    /* Active custom chip (topic is selected) */
+    .custom-chip.active {
+        background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+        border: 1.5px solid #3B82F6;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+    /* Inactive custom chip */
+    .custom-chip.inactive {
+        background-color: #1F2937;
+        border: 1.5px solid #374151;
+        color: #6B7280;
+        opacity: 0.75;
+    }
+    .custom-chip-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background-color: rgba(255,255,255,0.15);
+        color: inherit;
+        font-size: 11px;
+        line-height: 1;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        border: none;
+        padding: 0;
+        font-family: inherit;
+    }
+    .custom-chip.active .custom-chip-delete:hover {
+        background-color: rgba(255,255,255,0.35);
+    }
+    .custom-chip.inactive .custom-chip-delete:hover {
+        background-color: rgba(255,255,255,0.1);
+        color: #EF4444;
+    }
+
     html { scroll-behavior: smooth; }
     .back-to-top {
         position: fixed;
@@ -557,8 +632,6 @@ st.markdown('''
 col_search, col_edit = st.columns([4, 1])
 with col_search:
     st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital, Election...", label_visibility="collapsed")
-with col_edit:
-    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
 
 col_sel, col_clr, _ = st.columns([1, 1, 3])
 with col_sel:
@@ -574,15 +647,29 @@ with col_clr:
 
 if st.session_state.saved_custom_topics:
     st.write("**My Feeds**")
-    if is_edit_mode:
-        st.warning("🗑️ **Delete Mode Active:** Uncheck to delete.")
-        def on_delete_change():
-            remaining = st.session_state.temp_delete_widget
-            st.session_state.saved_custom_topics = remaining
-            st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
-        st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
-    else:
-        st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
+
+    # Render custom chips as HTML with inline X delete buttons.
+    # Clicking X sets ?delete_topic=Name via JS, which Streamlit catches on rerun.
+    chips_html = '<div class="custom-chips-row">'
+    for topic in st.session_state.saved_custom_topics:
+        is_active = topic in st.session_state.active_custom
+        state_class = "active" if is_active else "inactive"
+        encoded = urllib.parse.quote(topic)
+        chips_html += f'''
+            <span class="custom-chip {state_class}">
+                {topic}
+                <button class="custom-chip-delete"
+                    onclick="window.parent.location.search = '?delete_topic={encoded}'"
+                    title="Remove {topic}">✕</button>
+            </span>'''
+    chips_html += '</div>'
+    st.markdown(chips_html, unsafe_allow_html=True)
+
+    # Hidden pills widget to keep active_custom state in sync when user clicks chips.
+    # We still need st.pills for Streamlit state — we just hide it visually.
+    st.markdown('<div style="display:none">', unsafe_allow_html=True)
+    st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
