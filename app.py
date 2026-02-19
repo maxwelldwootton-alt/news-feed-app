@@ -507,3 +507,53 @@ st.markdown(
     ''',
     unsafe_allow_html=True
 )
+# JavaScript Animation Hook to artificially slow down the scroll
+components.html(
+    """
+    <script>
+    try {
+        const parentDoc = window.parent.document;
+        const btn = parentDoc.querySelector('.back-to-top');
+        // Targets Streamlit's main scrolling container
+        const scrollContainer = parentDoc.querySelector('.main') || parentDoc.querySelector('[data-testid="stAppViewContainer"]');
+        
+        if (btn && scrollContainer) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault(); // Intercepts and stops the rapid native browser jump
+                
+                const startY = scrollContainer.scrollTop;
+                const duration = 1500; // 🕒 Set to 1500ms (1.5 seconds) for a slow glide
+                const startTime = performance.now();
+                
+                // Mathematical curve for "ease-in-out" so it starts slow, accelerates, and stops slow
+                function easeInOutCubic(t, b, c, d) {
+                    t /= d/2;
+                    if (t < 1) return c/2*t*t*t + b;
+                    t -= 2;
+                    return c/2*(t*t*t + 2) + b;
+                }
+                
+                function animateScroll(currentTime) {
+                    const timeElapsed = currentTime - startTime;
+                    const run = easeInOutCubic(timeElapsed, startY, -startY, duration);
+                    
+                    scrollContainer.scrollTop = run;
+                    
+                    if (timeElapsed < duration) {
+                        window.requestAnimationFrame(animateScroll);
+                    } else {
+                        scrollContainer.scrollTop = 0;
+                    }
+                }
+                
+                window.requestAnimationFrame(animateScroll);
+            });
+        }
+    } catch(err) {
+        console.log("Animation script blocked by environment, falling back to native CSS smooth scroll.");
+    }
+    </script>
+    """,
+    height=0,
+    width=0
+)
