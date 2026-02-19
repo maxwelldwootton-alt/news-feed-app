@@ -265,17 +265,7 @@ st.markdown('''
         border-bottom: 3px solid #60A5FA !important; /* Thick glowing border */
         background-color: rgba(59, 130, 246, 0.1) !important; /* Subtle blue background tint */
     }
-    /* Shotgun approach to kill all tab-related dividers */
-div[data-baseweb="tabs"] > div:first-child,
-div[data-baseweb="tab-list"],
-div[data-baseweb="tab-panel"],
-div[data-testid="stTab"] {
-    border-bottom: none !important;
-    border-top: none !important;
-    border-left: none !important;
-    border-right: none !important;
-    box-shadow: none !important;
-}
+    
 
     .masthead {
         text-align: center;
