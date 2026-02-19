@@ -278,8 +278,6 @@ for topic in st.session_state.applied_topics:
 
 api_query = " OR ".join(query_parts) if query_parts else "General"
 
-st.divider()
-
 # --- MAIN APP BODY ---
 if not NEWS_API_KEY:
     st.warning("⚠️ Please enter a valid NewsAPI key.")
