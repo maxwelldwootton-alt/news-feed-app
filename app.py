@@ -1,12 +1,12 @@
 import streamlit as st
-import streamlit.components.v1 as components # 🌟 Required for the copy-to-clipboard JS injection
+import streamlit.components.v1 as components
 import requests
 import re
 from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
-import concurrent.futures # 🌟 Required for parallel API calls
-import urllib.parse # 🌟 Required to safely encode the AI summary text for the clipboard
- 
+import concurrent.futures
+import urllib.parse
+
 # --- CONFIGURATION ---
 NEWS_API_KEYS = [
     st.secrets["NEWS_API_KEY_1"],
@@ -30,7 +30,7 @@ SOURCE_MAPPING = {
     'the-wall-street-journal': 'WSJ',
     'cnbc': 'CNBC',
     'business-insider': 'Business Insider',
-    'financial-post': 'Financial Post', 
+    'financial-post': 'Financial Post',
     'techcrunch': 'TechCrunch',
     'wired': 'Wired',
     'ars-technica': 'Ars Technica',
@@ -44,8 +44,6 @@ DEFAULT_TOPICS = [
 ]
 
 # --- KEYWORD EXPANSION ---
-# Each topic maps to a list of related keywords used for both API querying and classification.
-# For custom user topics not in this dict, the topic name itself is used as a fallback.
 TOPIC_KEYWORDS = {
     "Tech": [
         "tech", "technology", "software", "hardware", "startup",
@@ -88,7 +86,6 @@ if 'active_default' not in st.session_state:
 if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
-# Stores the topics that were actually submitted to the API
 if 'applied_topics' not in st.session_state:
     st.session_state.applied_topics = DEFAULT_TOPICS.copy()
 
@@ -96,11 +93,9 @@ if 'applied_start_date' not in st.session_state:
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
     st.session_state.applied_start_date = today - timedelta(days=1)
-    st.session_state.applied_end_date = today 
-    # Pre-selects every source except Wired and Hacker News by default
-    st.session_state.applied_sources = [src for src in SOURCE_MAPPING.keys() if src not in ('wired', 'hacker-news','ars-technica')]
+    st.session_state.applied_end_date = today
+    st.session_state.applied_sources = [src for src in SOURCE_MAPPING.keys() if src not in ('wired', 'hacker-news', 'ars-technica')]
 
-# Memory for the AI Summary and its feed signature
 if 'ai_summary_text' not in st.session_state:
     st.session_state.ai_summary_text = None
 if 'ai_summary_signature' not in st.session_state:
@@ -115,51 +110,53 @@ def build_api_query(topic):
     NewsAPI limits query complexity, so we cap at 5 keywords per topic.
     """
     keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
-    # Cap at 5 to stay within NewsAPI query length limits
     capped_keywords = keywords[:5]
     return " OR ".join(f'"{kw}"' for kw in capped_keywords)
 
 
 # 6-Hour Cache & Parallel Fetching
+# ✅ FIXED: removed unused api_key parameter from signature — keys are handled internally
 @st.cache_data(ttl=timedelta(hours=6), show_spinner=False)
-def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
+def fetch_news_parallel(topics, sources, from_date, to_date):
     if not topics:
         topics = ["General"]
-        
+
     all_articles = []
-    
-def fetch_single_topic(topic):
-    url = "https://newsapi.org/v2/everything"
-    params = {
-        'q': build_api_query(topic),
-        'searchIn': 'title,description',
-        'sources': ','.join(sources) if sources else '',
-        'from': from_date.strftime('%Y-%m-%d'),
-        'to': to_date.strftime('%Y-%m-%d'),
-        'language': 'en',
-        'sortBy': 'publishedAt',
-        'pageSize': 100,
-    }
-    for api_key in NEWS_API_KEYS:
-        try:
-            response = requests.get(url, params={**params, 'apiKey': api_key})
-            data = response.json()
-            if data.get('status') == 'ok':
-                return data.get('articles', [])
-            # If status is not ok (e.g. rate limited), try next key
-        except:
-            pass  # Network error, try next key
-    return []  # All keys exhausted
+
+    # ✅ FIXED: fetch_single_topic is properly nested inside fetch_news_parallel
+    # so it can access sources, from_date, and to_date via closure
+    def fetch_single_topic(topic):
+        url = "https://newsapi.org/v2/everything"
+        params = {
+            'q': build_api_query(topic),
+            'searchIn': 'title,description',
+            'sources': ','.join(sources) if sources else '',
+            'from': from_date.strftime('%Y-%m-%d'),
+            'to': to_date.strftime('%Y-%m-%d'),
+            'language': 'en',
+            'sortBy': 'publishedAt',
+            'pageSize': 100,
+        }
+        # Try each API key in order, move to next if one fails or is rate-limited
+        for api_key in NEWS_API_KEYS:
+            try:
+                response = requests.get(url, params={**params, 'apiKey': api_key})
+                data = response.json()
+                if data.get('status') == 'ok':
+                    return data.get('articles', [])
+            except:
+                pass  # Network error, try next key
+        return []  # All keys exhausted
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         results = executor.map(fetch_single_topic, topics)
-        
+
     for res in results:
         all_articles.extend(res)
-        
+
     valid_articles = [a for a in all_articles if a.get('title') and a['title'] != "[Removed]"]
     valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
-    
+
     return valid_articles
 
 
@@ -167,23 +164,23 @@ def classify_article(text, applied_topics):
     """
     Tags an article by checking its text against the expanded keyword list
     for each topic. For custom topics not in TOPIC_KEYWORDS, falls back to
-    matching the topic name directly — same behavior as before.
+    matching the topic name directly.
     """
     found_tags = []
     text_lower = text.lower()
-    
+
     for topic in applied_topics:
         keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
         for kw in keywords:
             if re.search(rf'\b{re.escape(kw)}\b', text_lower):
                 found_tags.append(topic)
                 break  # One keyword match is enough to tag this topic
-            
+
     return list(dict.fromkeys(found_tags))
 
 
 @st.cache_data(show_spinner=False)
-def get_gemini_summary(prompt_data_string, date_context): 
+def get_gemini_summary(prompt_data_string, date_context):
     if not prompt_data_string.strip():
         return "No articles available to summarize."
     try:
@@ -207,20 +204,19 @@ def add_custom_topic():
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
-        
+
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
-            
+
         current_active = st.session_state.get('active_custom', [])
         if new_topic not in current_active:
             st.session_state.active_custom = current_active + [new_topic]
-            
+
     st.session_state.search_input = ""
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
-# The invisible target at the very top of the page
 st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
 
 # --- CSS STYLING ---
@@ -233,13 +229,11 @@ st.markdown('''
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
 
-    /* Hide the Streamlit anchor link icons globally */
     [data-testid="stHeaderActionElements"],
     h1 > div > a, h2 > div > a, h3 > div > a {
         display: none !important;
     }
 
-    /* Expands the native unselectable UI to the Tabs and AI Overview header */
     .masthead, .masthead h1, .masthead p, 
     [data-testid="stHeader"], 
     [data-testid="stTab"], 
@@ -249,7 +243,6 @@ st.markdown('''
         cursor: default !important;
     }
 
-    /* Premium Masthead */
     .masthead {
         text-align: center;
         padding: 2rem 0 1.5rem 0;
@@ -275,7 +268,6 @@ st.markdown('''
         letter-spacing: 3px;
     }
 
-    /* Article Cards */
     .card-container {
         background-color: #262730; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; border: 1px solid #363636;
@@ -305,7 +297,6 @@ st.markdown('''
     .card-container:hover .headline { color: #60A5FA; }
     .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
     
-    /* Tactile Hover Effects for Chips */
     .chip { 
         display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; 
         font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; 
@@ -335,7 +326,6 @@ st.markdown('''
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
 
-    /* Executive Briefing AI Container */
     .ai-briefing-container {
         background: #1E1E24;
         border: 1px solid #2E2F38;
@@ -349,7 +339,6 @@ st.markdown('''
         margin-top: 1rem;
     }
 
-    /* 🌟 NEW: AI Copy Button Styles */
     .copy-btn {
         display: inline-flex;
         align-items: center;
@@ -370,7 +359,6 @@ st.markdown('''
         color: white;
     }
 
-    /* CSS-only Floating Button */
     html { scroll-behavior: smooth; }
     .back-to-top {
         position: fixed;
@@ -399,36 +387,36 @@ st.markdown('''
         fill: currentColor;
     }
     </style>
-''' , unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
-    
+
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
     min_allowed_date = today - timedelta(days=29)
-    
+
     safe_start = max(min(st.session_state.applied_start_date, today), min_allowed_date)
     safe_end = max(min(st.session_state.applied_end_date, today), min_allowed_date)
     if safe_start > safe_end:
         safe_start = safe_end
-        
+
     current_date_range = st.date_input(
-        "Select Date Range", 
-        value=(safe_start, safe_end), 
-        min_value=min_allowed_date, 
-        max_value=today, 
+        "Select Date Range",
+        value=(safe_start, safe_end),
+        min_value=min_allowed_date,
+        max_value=today,
         format="MM/DD/YYYY"
     )
-    
+
     if len(current_date_range) == 2:
         current_start, current_end = current_date_range
     elif len(current_date_range) == 1:
         current_start, current_end = current_date_range[0], current_date_range[0]
     else:
         current_start, current_end = safe_start, safe_end
-    
+
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
@@ -447,7 +435,6 @@ with col_search:
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
 
-# Select All / Clear All Topic Controls
 col_sel, col_clr, _ = st.columns([1, 1, 3])
 with col_sel:
     if st.button("☑️ Select All", use_container_width=True, help="Select all custom and trending topics"):
@@ -498,7 +485,7 @@ FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcm
 
 # --- MAIN APP BODY ---
 if not NEWS_API_KEYS:
-    st.warning("⚠️ Please enter a valid NewsAPI key.")
+    st.warning("⚠️ Please enter at least one valid NewsAPI key.")
 elif not st.session_state.applied_topics:
     st.info("👈 Please select at least one feed category above and click 'Update Feed' to view articles.")
 else:
@@ -506,38 +493,42 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         try:
-            # Calling the parallel fetch function with a direct list of topics
-            raw_articles = fetch_news_parallel(st.session_state.applied_topics, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEYS)
+            # ✅ FIXED: no longer passes NEWS_API_KEY — keys are handled inside the function
+            raw_articles = fetch_news_parallel(
+                st.session_state.applied_topics,
+                st.session_state.applied_sources,
+                st.session_state.applied_start_date,
+                st.session_state.applied_end_date
+            )
         except Exception as e:
             st.error(f"🚨 API Error: {e}")
             raw_articles = []
-        
+
         processed_articles = []
         seen_titles = set()
-        
+
         for article in raw_articles:
             title = article.get('title') or ""
-            
-            # Global deduplication
+
             if title in seen_titles:
                 continue
             seen_titles.add(title)
-            
+
             description = article.get('description') or ""
             text_to_analyze = f"{title} {description}"
-            
+
             article_tags = classify_article(text_to_analyze, st.session_state.applied_topics)
-            
+
             if not article_tags:
                 continue
-            
+
             article_tags.sort(key=lambda x: st.session_state.applied_topics.index(x) if x in st.session_state.applied_topics else 999)
-            
+
             article['computed_tags'] = article_tags
             processed_articles.append(article)
 
         tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
-        
+
         # --- TAB 1: THE FEED ---
         with tab_feed:
             if not processed_articles:
@@ -547,46 +538,46 @@ else:
                     st.info("No articles found matching these topics on the selected dates.")
             else:
                 st.caption(f"Showing **{len(processed_articles)}** articles")
-                
+
             for article in processed_articles:
                 title = article.get('title') or ""
                 url = article.get('url') or "#"
                 image_url = article.get('urlToImage')
                 description = article.get('description') or ""
-                
+
                 tags_html = ""
                 article_tags = article['computed_tags']
                 visible_tags = article_tags[:2]
                 hidden_tags = article_tags[2:]
                 overflow_count = len(hidden_tags)
-                
+
                 for tag in visible_tags:
                     tags_html += f'<span class="chip chip-category">{tag}</span>'
-                
+
                 if overflow_count > 0:
                     tooltip_text = ", ".join(hidden_tags)
                     tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
-                
+
                 iso_date = article.get('publishedAt', '')[:10]
                 published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
-                
+
                 api_source_name = article.get('source', {}).get('name', 'Unknown')
-                api_source_id = article.get('source', {}).get('id', '') 
+                api_source_id = article.get('source', {}).get('id', '')
                 display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
-                
+
                 source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                
+
                 if image_url:
                     img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.onerror=null; this.src=\'{FALLBACK_IMG}\';"></div>'
                 else:
                     img_html = f'<div class="img-column"><img src="{FALLBACK_IMG}" alt="Placeholder"></div>'
-                
+
                 st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
-                
+
         # --- TAB 2: AI OVERVIEW ---
         with tab_ai:
             st.header("✨ AI Overview", anchor=False)
-            
+
             if not processed_articles:
                 st.info("No articles available to summarize.")
             else:
@@ -596,26 +587,24 @@ else:
                     title = a.get('title') or "No Title"
                     desc = a.get('description') or "No Description"
                     content = a.get('content') or "No Content"
-                    
                     prompt_lines.append(f"Categories: [{cat_string}] | Title: {title} | Desc: {desc} | Content: {content}")
-                
+
                 prompt_data_string = "\n".join(prompt_lines)
-                
+
                 current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}"
-                
+
                 if st.session_state.get('ai_summary_signature') != current_feed_signature:
                     if st.button("Generate Summary", type="primary"):
                         with st.spinner("Gemini is reading the news..."):
                             date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
                             summary_markdown = get_gemini_summary(prompt_data_string, date_context)
-                            
+
                             st.session_state.ai_summary_text = summary_markdown
                             st.session_state.ai_summary_signature = current_feed_signature
-                            
+
                             st.rerun()
-                            
+
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
-                    # 🌟 NEW: We safely encode the text and append the copy button to the end of the summary container
                     encoded_summary = urllib.parse.quote(st.session_state.ai_summary_text)
                     st.markdown(f'''
                     <div class="ai-briefing-container">
@@ -625,7 +614,7 @@ else:
                     </div>
                     ''', unsafe_allow_html=True)
 
-# THE BUTTON: Draws the physical button and snaps instantly to the #top-of-page target
+# Back to top button
 st.markdown(
     '''
     <a href="#top-of-page" class="back-to-top" title="Return to top">
@@ -637,7 +626,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 🌟 UPGRADED SCRIPT: Injects a bulletproof listener with a clipboard fallback
+# Copy to clipboard JS
 components.html(
     """
     <script>
@@ -652,11 +641,9 @@ components.html(
             btn.addEventListener('click', function() {
                 const textToCopy = decodeURIComponent(btn.getAttribute('data-text'));
                 
-                // The "Brute Force" Fallback Method
                 function fallbackCopyTextToClipboard(text) {
                     var textArea = parentDoc.createElement("textarea");
                     textArea.value = text;
-                    // Keep it completely invisible and avoid scrolling
                     textArea.style.top = "0";
                     textArea.style.left = "0";
                     textArea.style.position = "fixed";
@@ -678,7 +665,6 @@ components.html(
                     btn.innerHTML = "✅ Copied!";
                     btn.style.backgroundColor = "#059669"; 
                     btn.style.borderColor = "#047857";
-                    
                     setTimeout(() => { 
                         btn.innerHTML = "📋 Copy to Clipboard"; 
                         btn.style.backgroundColor = "#374151";
@@ -694,7 +680,6 @@ components.html(
                     }, 2000);
                 }
 
-                // Try modern API first, immediately use fallback if it gets blocked
                 if (parentWin.navigator && parentWin.navigator.clipboard) {
                     parentWin.navigator.clipboard.writeText(textToCopy)
                         .then(onSuccess)
