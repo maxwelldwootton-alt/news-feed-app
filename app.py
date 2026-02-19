@@ -271,7 +271,7 @@ st.markdown('''
         text-align: center;
         padding: 2rem 0 1.5rem 0;
         margin-bottom: 2rem;
-        border-bottom: 1px solid #363636;
+        border-bottom: 5px solid #363636;
     }
     .masthead h1 {
         font-family: 'Merriweather', serif;
