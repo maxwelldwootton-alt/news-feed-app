@@ -418,7 +418,7 @@ div[data-baseweb="tab-panel"] {
 }
 /* Smaller Select/Clear All buttons */
 div[data-testid="stColumns"] .stButton button {
-    font-size: 8px !important;
+    font-size: 5px !important;
     padding: 4px 8px !important;
     min-height: 0 !important;
     height: auto !important;
