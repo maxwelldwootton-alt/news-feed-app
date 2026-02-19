@@ -1,10 +1,9 @@
 import streamlit as st
-import streamlit.components.v1 as components 
 import requests
 import re
 from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
-import concurrent.futures # 🌟 NEW: Required for parallel API calls
+import concurrent.futures # 🌟 Required for parallel API calls
 
 # --- CONFIGURATION ---
 NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
@@ -67,8 +66,8 @@ if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
 
 # --- FUNCTIONS ---
-# 🌟 NEW: 12-Hour Cache & Parallel Fetching
-@st.cache_data(ttl=timedelta(hours=12), show_spinner=False)
+# 🌟 6-Hour Cache & Parallel Fetching
+@st.cache_data(ttl=timedelta(hours=6), show_spinner=False)
 def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
     # If no topics, fallback to a general query
     if not topics:
@@ -170,7 +169,6 @@ st.markdown('''
     @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    html { scroll-behavior: smooth; } 
     
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
@@ -397,7 +395,7 @@ else:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
         try:
-            # 🌟 NEW: Calling the parallel fetch function with a direct list of topics
+            # 🌟 Calling the parallel fetch function with a direct list of topics
             raw_articles = fetch_news_parallel(st.session_state.applied_topics, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
         except Exception as e:
             st.error(f"🚨 API Error: {e}")
@@ -409,7 +407,7 @@ else:
         for article in raw_articles:
             title = article.get('title') or ""
             
-            # Global deduplication (since parallel pulls might have overlapping articles)
+            # Global deduplication
             if title in seen_titles:
                 continue
             seen_titles.add(title)
@@ -508,7 +506,7 @@ else:
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
 
-# 🌟 THE BUTTON: Draws the physical button on the screen
+# 🌟 THE BUTTON: Draws the physical button and snaps instantly to the #top-of-page target
 st.markdown(
     '''
     <a href="#top-of-page" class="back-to-top" title="Return to top">
@@ -518,77 +516,4 @@ st.markdown(
     </a>
     ''',
     unsafe_allow_html=True
-)
-
-# 🌟 THE SCRIPT: Waits for the button to exist, then attaches the slow-scroll
-components.html(
-    """
-    <script>
-    const parentDoc = window.parent.document;
-    
-    // Wait for Streamlit to finish drawing the button
-    const findButton = setInterval(() => {
-        const btn = parentDoc.querySelector('.back-to-top');
-        
-        if (btn) {
-            clearInterval(findButton); // Stop searching once found
-            
-            // Attach the slow-scroll animation
-            btn.addEventListener('click', function(e) {
-                e.preventDefault(); // Stop the rapid HTML jump
-                
-                // Find Streamlit's scrolling container
-                const scrollContainer = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main');
-                const scrollWindow = window.parent;
-                
-                let targetElement = null;
-                let startY = 0;
-                
-                if (scrollContainer && scrollContainer.scrollTop > 0) {
-                    targetElement = scrollContainer;
-                    startY = scrollContainer.scrollTop;
-                } else if (scrollWindow.scrollY > 0) {
-                    targetElement = scrollWindow;
-                    startY = scrollWindow.scrollY;
-                } else {
-                    return; // Already at the top
-                }
-
-                const duration = 1500; // 🕒 1.5 seconds glide (Change this number to adjust speed)
-                const startTime = performance.now();
-                
-                function easeInOutCubic(t, b, c, d) {
-                    t /= d/2;
-                    if (t < 1) return c/2*t*t*t + b;
-                    t -= 2;
-                    return c/2*(t*t*t + 2) + b;
-                }
-                
-                function animateScroll(currentTime) {
-                    const timeElapsed = currentTime - startTime;
-                    const run = easeInOutCubic(timeElapsed, startY, -startY, duration);
-                    
-                    if (targetElement === scrollWindow) {
-                        targetElement.scrollTo(0, run);
-                    } else {
-                        targetElement.scrollTop = run;
-                    }
-                    
-                    if (timeElapsed < duration) {
-                        window.requestAnimationFrame(animateScroll);
-                    } else {
-                        // Snap exactly to 0 at the very end to prevent getting stuck
-                        if (targetElement === scrollWindow) targetElement.scrollTo(0, 0);
-                        else targetElement.scrollTop = 0;
-                    }
-                }
-                
-                window.requestAnimationFrame(animateScroll);
-            });
-        }
-    }, 250); // Check every 250 milliseconds
-    </script>
-    """,
-    height=0,
-    width=0
 )
