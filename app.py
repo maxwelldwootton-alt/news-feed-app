@@ -410,6 +410,9 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
+    div[data-baseweb="tab-border"] {
+    display: none !important;
+}
     </style>
 ''', unsafe_allow_html=True)
 
