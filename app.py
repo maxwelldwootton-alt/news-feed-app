@@ -413,6 +413,9 @@ st.markdown('''
     div[data-baseweb="tab-border"] {
     display: none !important;
 }
+div[data-baseweb="tab-panel"] {
+    padding-top: 0 !important;
+}
     </style>
 ''', unsafe_allow_html=True)
 
