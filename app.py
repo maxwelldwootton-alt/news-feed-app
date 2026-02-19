@@ -313,6 +313,7 @@ st.markdown('''
 
     /* =========================================================
        TOPIC PILLS — clear selected vs. deselected contrast
+       Covers aria-checked (multi-select) and aria-pressed (single-select)
     ========================================================= */
     /* Deselected: visibly dimmed, muted border */
     [data-testid="stPillsButton"] {
@@ -330,17 +331,22 @@ st.markdown('''
         color: #9CA3AF !important;
         background-color: #22232E !important;
     }
-    /* Selected: bright, high-contrast, glowing */
-    [data-testid="stPillsButton"][aria-pressed="true"] {
+    /* Selected: covers both aria-checked (multi) and aria-pressed (single) */
+    [data-testid="stPillsButton"][aria-checked="true"],
+    [data-testid="stPillsButton"][aria-pressed="true"],
+    [data-testid="stPillsButton"][aria-selected="true"] {
         background: linear-gradient(135deg, #1D4ED8, #2563EB) !important;
         border-color: #3B82F6 !important;
         color: #FFFFFF !important;
         font-weight: 600 !important;
         box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 2px 8px rgba(37, 99, 235, 0.4) !important;
     }
-    [data-testid="stPillsButton"][aria-pressed="true"]:hover {
+    [data-testid="stPillsButton"][aria-checked="true"]:hover,
+    [data-testid="stPillsButton"][aria-pressed="true"]:hover,
+    [data-testid="stPillsButton"][aria-selected="true"]:hover {
         background: linear-gradient(135deg, #2563EB, #3B82F6) !important;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(37, 99, 235, 0.5) !important;
+        color: #FFFFFF !important;
     }
 
     .ai-briefing-container {
