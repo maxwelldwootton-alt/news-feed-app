@@ -575,11 +575,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 🌟 NEW SCRIPT: Injects the listener for the Copy-to-Clipboard button
+# 🌟 UPGRADED SCRIPT: Injects a bulletproof listener with a clipboard fallback
 components.html(
     """
     <script>
     const parentDoc = window.parent.document;
+    const parentWin = window.parent;
     
     const findCopyBtn = setInterval(() => {
         const btn = parentDoc.getElementById('copy-ai-btn');
@@ -589,10 +590,31 @@ components.html(
             btn.addEventListener('click', function() {
                 const textToCopy = decodeURIComponent(btn.getAttribute('data-text'));
                 
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    const originalText = btn.innerHTML;
+                // The "Brute Force" Fallback Method
+                function fallbackCopyTextToClipboard(text) {
+                    var textArea = parentDoc.createElement("textarea");
+                    textArea.value = text;
+                    // Keep it completely invisible and avoid scrolling
+                    textArea.style.top = "0";
+                    textArea.style.left = "0";
+                    textArea.style.position = "fixed";
+                    textArea.style.opacity = "0";
+                    parentDoc.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        var successful = parentDoc.execCommand('copy');
+                        return successful;
+                    } catch (err) {
+                        return false;
+                    } finally {
+                        parentDoc.body.removeChild(textArea);
+                    }
+                }
+
+                function onSuccess() {
                     btn.innerHTML = "✅ Copied!";
-                    btn.style.backgroundColor = "#059669"; // Green success color
+                    btn.style.backgroundColor = "#059669"; 
                     btn.style.borderColor = "#047857";
                     
                     setTimeout(() => { 
@@ -600,10 +622,34 @@ components.html(
                         btn.style.backgroundColor = "#374151";
                         btn.style.borderColor = "#4B5563";
                     }, 2000);
-                }).catch(err => {
-                    console.error('Failed to copy text: ', err);
+                }
+
+                function onError(err) {
+                    console.error('Copy failed: ', err);
                     btn.innerHTML = "❌ Error Copying";
-                });
+                    setTimeout(() => { 
+                        btn.innerHTML = "📋 Copy to Clipboard"; 
+                    }, 2000);
+                }
+
+                // Try modern API first, immediately use fallback if it gets blocked
+                if (parentWin.navigator && parentWin.navigator.clipboard) {
+                    parentWin.navigator.clipboard.writeText(textToCopy)
+                        .then(onSuccess)
+                        .catch(err => {
+                            if (fallbackCopyTextToClipboard(textToCopy)) {
+                                onSuccess();
+                            } else {
+                                onError(err);
+                            }
+                        });
+                } else {
+                    if (fallbackCopyTextToClipboard(textToCopy)) {
+                        onSuccess();
+                    } else {
+                        onError("Clipboard API not available");
+                    }
+                }
             });
         }
     }, 250);
