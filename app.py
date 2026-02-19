@@ -311,38 +311,6 @@ st.markdown('''
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
 
-    /* =========================================================
-       TOPIC PILLS — clear selected vs. deselected contrast
-    ========================================================= */
-    /* Deselected: visibly dimmed, muted border */
-    [data-testid="stPillsButton"] {
-        background-color: #1A1B23 !important;
-        border: 1.5px solid #2D2F3A !important;
-        color: #4B5563 !important;
-        font-family: 'Inter', sans-serif !important;
-        font-size: 13px !important;
-        font-weight: 500 !important;
-        border-radius: 20px !important;
-        transition: all 0.2s ease !important;
-    }
-    [data-testid="stPillsButton"]:hover {
-        border-color: #4B5563 !important;
-        color: #9CA3AF !important;
-        background-color: #22232E !important;
-    }
-    /* Selected: bright, high-contrast, glowing */
-    [data-testid="stPillsButton"][aria-pressed="true"] {
-        background: linear-gradient(135deg, #1D4ED8, #2563EB) !important;
-        border-color: #3B82F6 !important;
-        color: #FFFFFF !important;
-        font-weight: 600 !important;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 2px 8px rgba(37, 99, 235, 0.4) !important;
-    }
-    [data-testid="stPillsButton"][aria-pressed="true"]:hover {
-        background: linear-gradient(135deg, #2563EB, #3B82F6) !important;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(37, 99, 235, 0.5) !important;
-    }
-
     .ai-briefing-container {
         background: #1E1E24;
         border: 1px solid #2E2F38;
@@ -614,10 +582,8 @@ else:
                         with st.spinner("Gemini is reading the news..."):
                             date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
                             summary_markdown = get_gemini_summary(prompt_data_string, date_context)
-
                             st.session_state.ai_summary_text = summary_markdown
                             st.session_state.ai_summary_signature = current_feed_signature
-
                             st.rerun()
 
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
