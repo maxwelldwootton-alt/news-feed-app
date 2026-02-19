@@ -199,7 +199,7 @@ def add_custom_topic():
 
     st.session_state.search_input = ""
 
-# 🌟 NEW: Callbacks for the Select All and Clear All buttons
+# Callbacks for the Select All and Clear All buttons
 def select_all_topics():
     st.session_state.active_default = DEFAULT_TOPICS.copy()
     st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
@@ -441,15 +441,16 @@ if st.session_state.saved_custom_topics:
     else:
         st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
 
-st.write("**Trending Topics**")
-st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
-
-# 🌟 FIXED: Buttons now execute the callback logic before the UI rebuilds
-col_sel, col_clr, _ = st.columns([1, 1, 3])
+# 🌟 NEW INLINE BUTTON LAYOUT
+col_title, col_sel, col_clr, _ = st.columns([3, 1.5, 1.5, 3], vertical_alignment="center")
+with col_title:
+    st.markdown("**Trending Topics**")
 with col_sel:
     st.button("☑️ Select All", on_click=select_all_topics, use_container_width=True, help="Select all custom and trending topics")
 with col_clr:
     st.button("☐ Clear All", on_click=clear_all_topics, use_container_width=True, help="Deselect all topics")
+
+st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
 # CONDITIONAL REFRESH BUTTON
 current_selected_topics = st.session_state.active_default + st.session_state.active_custom
