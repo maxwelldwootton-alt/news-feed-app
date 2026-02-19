@@ -39,6 +39,10 @@ if 'active_default' not in st.session_state:
 if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
+# 🛑 NEW: Stores the topics that were actually submitted to the API
+if 'applied_topics' not in st.session_state:
+    st.session_state.applied_topics = DEFAULT_TOPICS.copy()
+
 if 'applied_start_date' not in st.session_state:
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
@@ -47,7 +51,7 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
 
 # --- FUNCTIONS ---
-@st.cache_data(ttl=86400, show_spinner=False) # 86400 seconds = 24 hours
+@st.cache_data(ttl=86400, show_spinner=False)
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
     if sources:
@@ -76,11 +80,11 @@ def fetch_news(query, sources, from_date, to_date, api_key):
         error_msg = data.get('message', 'Unknown API Error')
         raise RuntimeError(error_msg)
 
-def classify_article(text, active_topics):
+def classify_article(text, applied_topics):
     found_tags = []
     text_lower = text.lower()
     
-    for topic in active_topics:
+    for topic in applied_topics:
         if re.search(rf'\b{re.escape(topic.lower())}', text_lower):
             found_tags.append(topic)
             
@@ -211,18 +215,19 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# --- MASTER QUERY BUILDER (OPTION 2) ---
-all_master_topics = list(dict.fromkeys(DEFAULT_TOPICS + st.session_state.saved_custom_topics))
-query_parts = []
+# 🛑 NEW: The Refresh Feed button
+if st.button("🔄 Refresh Feed", type="primary", use_container_width=True):
+    st.session_state.applied_topics = st.session_state.active_default + st.session_state.active_custom
+    st.rerun()
 
-for topic in all_master_topics:
+# --- EXACT QUERY BUILDER ---
+query_parts = []
+for topic in st.session_state.applied_topics:
     part = f'"{topic}"' 
     if len(" OR ".join(query_parts + [part])) < 450: 
         query_parts.append(part)
 
-master_api_query = " OR ".join(query_parts) if query_parts else "General"
-
-active_topics = st.session_state.active_default + st.session_state.active_custom
+api_query = " OR ".join(query_parts) if query_parts else "General"
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -267,8 +272,8 @@ st.divider()
 # --- MAIN APP BODY ---
 if not NEWS_API_KEY:
     st.warning("⚠️ Please enter a valid NewsAPI key.")
-elif not active_topics:
-    st.info("👈 Please select at least one feed category above to view articles.")
+elif not st.session_state.applied_topics:
+    st.info("👈 Please select at least one feed category above and click 'Refresh Feed' to view articles.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
@@ -276,13 +281,12 @@ else:
         with st.spinner("Loading wire..."):
             
             try:
-                raw_articles = fetch_news(master_api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+                raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             except Exception as e:
                 st.error(f"🚨 API Error: {e}")
                 raw_articles = []
             
             processed_articles = []
-            priority_list = st.session_state.active_custom + st.session_state.active_default
             
             for article in raw_articles:
                 title = article.get('title') or ""
@@ -290,12 +294,13 @@ else:
                 
                 text_to_analyze = f"{title} {description}"
                 
-                article_tags = classify_article(text_to_analyze, active_topics)
+                article_tags = classify_article(text_to_analyze, st.session_state.applied_topics)
                 
                 if not article_tags:
                     continue
                 
-                article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
+                # Sort tags so the ones you care about appear first
+                article_tags.sort(key=lambda x: st.session_state.applied_topics.index(x) if x in st.session_state.applied_topics else 999)
                 
                 article['computed_tags'] = article_tags
                 processed_articles.append(article)
@@ -306,7 +311,7 @@ else:
             with tab_feed:
                 if not processed_articles:
                     if raw_articles:
-                        st.info("Articles were found by the master query, but they were filtered out by your current chips.")
+                        st.info("Articles were found, but they were filtered out by your current chips.")
                     else:
                         st.info("No articles found matching these topics on the selected dates.")
                     
