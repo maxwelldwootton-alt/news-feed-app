@@ -41,7 +41,7 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    today = date.today()
+    today = date.today() - 1
     yesterday = today - timedelta(days=1)
     st.session_state.applied_start_date = yesterday
     # 🕒 CHANGED: Set the default end date to today
