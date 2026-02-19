@@ -410,6 +410,7 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
+    hr { display: none !important; }
     </style>
 ''', unsafe_allow_html=True)
 
