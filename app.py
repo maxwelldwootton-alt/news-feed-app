@@ -46,8 +46,9 @@ if 'applied_topics' not in st.session_state:
 if 'applied_start_date' not in st.session_state:
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
+    # 🕒 Start date is yesterday, End date is today
     st.session_state.applied_start_date = today - timedelta(days=1)
-    st.session_state.applied_end_date = today
+    st.session_state.applied_end_date = today 
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
 
 # --- FUNCTIONS ---
@@ -189,7 +190,7 @@ st.markdown('''
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
     </style>
-''', unsafe_allow_html=True)
+''' , unsafe_allow_html=True)
 
 st.title("📰 The Wire")
 st.caption("No algorithms. No comments. Just headlines.")
@@ -314,6 +315,9 @@ else:
                         st.info("Articles were found, but they were filtered out by your current chips.")
                     else:
                         st.info("No articles found matching these topics on the selected dates.")
+                else:
+                    # 📈 ADDED: Article count
+                    st.caption(f"Showing **{len(processed_articles)}** articles")
                     
                 for article in processed_articles:
                     title = article.get('title') or ""
