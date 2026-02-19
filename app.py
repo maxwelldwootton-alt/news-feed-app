@@ -347,7 +347,6 @@ else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
-        with st.spinner("Loading wire..."):
             
             try:
                 raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
