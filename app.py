@@ -91,7 +91,7 @@ def classify_article(text, applied_topics):
     return list(dict.fromkeys(found_tags))
 
 @st.cache_data(show_spinner=False)
-def get_gemini_summary(prompt_data_string, date_context): # 🛑 Updated to accept date context
+def get_gemini_summary(prompt_data_string, date_context): 
     if not prompt_data_string.strip():
         return "No articles available to summarize."
     try:
@@ -192,7 +192,7 @@ st.markdown('''
     </style>
 ''' , unsafe_allow_html=True)
 
-# --- SIDEBAR (Moved up so the main button can read its values!) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
     
@@ -223,7 +223,6 @@ with st.sidebar:
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
-    # 🛑 The redundant sidebar button has been deleted!
 
 # --- MAIN UI ---
 st.title("📰 The Wire")
@@ -250,15 +249,25 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# 🛑 NEW: The ONE Refresh Feed button that controls everything
-if st.button("🔄 Refresh Feed", type="primary", use_container_width=True):
-    # Lock in the topics
-    st.session_state.applied_topics = st.session_state.active_default + st.session_state.active_custom
-    # Lock in the sidebar filters
-    st.session_state.applied_start_date = current_start
-    st.session_state.applied_end_date = current_end
-    st.session_state.applied_sources = current_sources
-    st.rerun()
+# 🛑 NEW: CONDITIONAL REFRESH BUTTON
+current_selected_topics = st.session_state.active_default + st.session_state.active_custom
+
+# Check if ANY of the current UI selections differ from what is currently rendering the feed
+has_pending_changes = (
+    set(current_selected_topics) != set(st.session_state.applied_topics) or
+    current_start != st.session_state.applied_start_date or
+    current_end != st.session_state.applied_end_date or
+    set(current_sources) != set(st.session_state.applied_sources)
+)
+
+if has_pending_changes:
+    st.info("⚠️ You have pending filter changes.")
+    if st.button("🔄 Update Feed", type="primary", use_container_width=True):
+        st.session_state.applied_topics = current_selected_topics
+        st.session_state.applied_start_date = current_start
+        st.session_state.applied_end_date = current_end
+        st.session_state.applied_sources = current_sources
+        st.rerun()
 
 # --- EXACT QUERY BUILDER ---
 query_parts = []
@@ -275,7 +284,7 @@ st.divider()
 if not NEWS_API_KEY:
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 elif not st.session_state.applied_topics:
-    st.info("👈 Please select at least one feed category above and click 'Refresh Feed' to view articles.")
+    st.info("👈 Please select at least one feed category above and click 'Update Feed' to view articles.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
@@ -346,7 +355,7 @@ else:
                     display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
                     
                     source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
+                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.style.display=\'none\'"></div>' if image_url else ""
                     
                     st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                     
@@ -370,7 +379,6 @@ else:
                     
                     if st.button("Generate Summary", type="primary"):
                         with st.spinner("Gemini is reading the news..."):
-                            # 🛑 Passes the exact date range into the Gemini prompt
                             date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
                             summary_markdown = get_gemini_summary(prompt_data_string, date_context)
                             st.markdown(summary_markdown)
