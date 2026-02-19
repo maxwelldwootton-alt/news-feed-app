@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
 import concurrent.futures # 🌟 Required for parallel API calls
 import urllib.parse # 🌟 Required to safely encode the AI summary text for the clipboard
-
+ 
 # --- CONFIGURATION ---
 NEWS_API_KEYS = [
     st.secrets["NEWS_API_KEY_1"],
