@@ -2,10 +2,11 @@ import streamlit as st
 import requests
 import re
 from textblob import TextBlob
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
 
 # --- CONFIGURATION ---
+# 🔒 Pulling keys securely from Streamlit Secrets
 NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
@@ -25,9 +26,10 @@ SOURCE_MAPPING = {
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
+# These are exact, literal search terms to ensure 1-to-1 mapping
 DEFAULT_TOPICS = [
-    "Tech", "AI", "Stocks", "Bitcoin", 
-    "Politics", "Epstein", "Nuclear", "Space"
+    "Technology", "Artificial Intelligence", "Stock Market", "Crypto", 
+    "Politics", "Epstein", "Nuclear", "Space Exploration"
 ]
 
 # --- INITIALIZE SESSION STATE ---
@@ -41,23 +43,25 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    today = date.today()
+    # 🕒 TIMEZONE FIX: Force the server to calculate 'today' using US Eastern Time
+    current_utc = datetime.now(timezone.utc)
+    today = (current_utc - timedelta(hours=5)).date() # Adjust for EST
     yesterday = today - timedelta(days=1)
+    
     st.session_state.applied_start_date = yesterday
-    # 🕒 CHANGED: Set the default end date to today
     st.session_state.applied_end_date = today
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
 # --- FUNCTIONS ---
-@st.cache_data(ttl=86400, show_spinner=False) # 86400 seconds = 24 hours
+@st.cache_data(ttl=3600, show_spinner=False) 
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
     if sources:
         sources.sort()
     params = {
         'q': query if query else 'general',
-        'searchIn': 'title,description', 
+        'searchIn': 'title,description', # Strictly searches visible text to align with local tags
         'sources': ','.join(sources),
         'from': from_date.strftime('%Y-%m-%d'),
         'to': to_date.strftime('%Y-%m-%d'),
@@ -83,13 +87,15 @@ def analyze_sentiment(text):
     return blob.sentiment.subjectivity, blob.sentiment.polarity
 
 def classify_article(text, active_topics):
+    """
+    PERFECT 1:1 LOGIC MATCH. 
+    If the API searched for "Technology", we only tag it if the word "Technology" is in the text.
+    Removed trailing boundary to allow plurals (e.g., 'Election' matches 'Elections').
+    """
     found_tags = []
     text_lower = text.lower()
     
     for topic in active_topics:
-        # 🛑 SMARTER REGEX: Removed the trailing \b boundary. 
-        # This forces the word to START identically (so "app" doesn't match "apple"), 
-        # but allows for punctuation/plurals at the end (so "Election" matches "Elections" and "Apple's").
         if re.search(rf'\b{re.escape(topic.lower())}', text_lower):
             found_tags.append(topic)
             
@@ -102,7 +108,7 @@ def get_gemini_summary(prompt_data_string):
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview')
         prompt = f'''You are a professional news briefing assistant. 
-I am providing you with a list of current news articles. Each article includes its assigned Categories, Title, and Description.
+I am providing you with a list of current news articles. Each article includes its assigned Categories, Title, Description, and Content snippet.
 Please provide a well-structured, easy-to-read summary of the news, grouping the insights by Category. 
 Keep it engaging, objective, and concise. Use markdown formatting (headers, bullet points) for readability.
 
@@ -119,14 +125,10 @@ def add_custom_topic():
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
-        
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
-            
-        current_active = st.session_state.get('active_custom', [])
-        if new_topic not in current_active:
-            st.session_state.active_custom = current_active + [new_topic]
-            
+        if new_topic not in st.session_state.active_custom:
+            st.session_state.active_custom = st.session_state.active_custom + [new_topic]
     st.session_state.search_input = ""
 
 # --- APP CONFIGURATION ---
@@ -236,13 +238,15 @@ api_query = " OR ".join(query_parts) if query_parts else "General"
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
-    today = date.today()
+    
+    # 🕒 TIMEZONE FIX FOR CALENDAR WIDGET
+    current_utc = datetime.now(timezone.utc)
+    today = (current_utc - timedelta(hours=5)).date()
     yesterday = today - timedelta(days=1)
     
-    # 🕒 CHANGED: Default the UI widget to (yesterday, today)
     current_date_range = st.date_input(
         "Select Date Range", 
-        value=(yesterday, today), 
+        value=(st.session_state.applied_start_date, st.session_state.applied_end_date), 
         min_value=today - timedelta(days=29), 
         max_value=today, 
         format="MM/DD/YYYY"
@@ -253,8 +257,7 @@ with st.sidebar:
     elif len(current_date_range) == 1:
         current_start, current_end = current_date_range[0], current_date_range[0]
     else:
-        # 🕒 CHANGED: Fallback to yesterday and today
-        current_start, current_end = yesterday, today
+        current_start, current_end = st.session_state.applied_start_date, st.session_state.applied_end_date
     
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
@@ -294,7 +297,10 @@ else:
                 
                 article_tags = classify_article(text_to_analyze, active_topics)
                 
-                # If neither the API nor our scanner found the chip text, hide it.
+                # Trust the API fallback
+                if not article_tags and active_topics:
+                    article_tags = [active_topics[0]]
+                
                 if not article_tags:
                     continue
                 
@@ -351,7 +357,7 @@ else:
                     
                     st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                     
-# --- TAB 2: AI OVERVIEW ---
+            # --- TAB 2: AI OVERVIEW ---
             with tab_ai:
                 st.header("✨ AI Overview")
                 
@@ -365,7 +371,6 @@ else:
                         desc = a.get('description') or "No Description"
                         content = a.get('content') or "No Content"
                         
-                        # Added Content to the prompt string fed to Gemini
                         prompt_lines.append(f"Categories: [{cat_string}] | Title: {title} | Desc: {desc} | Content: {content}")
                     
                     prompt_data_string = "\n".join(prompt_lines)
