@@ -410,11 +410,6 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
-    /* Specifically targets the content area of the tab and nukes the top divider */
-[data-baseweb="tab-panel"] > div {
-    border-top: none !important;
-    padding-top: 0 !important;
-}
     </style>
 ''', unsafe_allow_html=True)
 
