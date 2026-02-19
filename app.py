@@ -29,6 +29,7 @@ SOURCE_MAPPING = {
     'financial-post': 'Financial Post', 
     'techcrunch': 'TechCrunch',
     'wired': 'Wired',
+    'ars-technica': 'Ars Technica',
     'hacker-news': 'Hacker News'
 }
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
@@ -37,6 +38,41 @@ NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politic
 DEFAULT_TOPICS = [
     "Tech", "AI", "Stocks", "Politics", "Epstein", "Nuclear"
 ]
+
+# --- KEYWORD EXPANSION ---
+# Each topic maps to a list of related keywords used for both API querying and classification.
+# For custom user topics not in this dict, the topic name itself is used as a fallback.
+TOPIC_KEYWORDS = {
+    "Tech": [
+        "tech", "technology", "software", "hardware", "startup",
+        "silicon valley", "app", "semiconductor", "cybersecurity", "cloud computing"
+    ],
+    "AI": [
+        "ai", "artificial intelligence", "machine learning", "llm",
+        "openai", "chatgpt", "deep learning", "neural network",
+        "anthropic", "gemini", "large language model", "generative ai"
+    ],
+    "Stocks": [
+        "stocks", "stock market", "equities", "s&p", "nasdaq",
+        "dow jones", "shares", "earnings", "ipo", "wall street",
+        "federal reserve", "interest rates", "hedge fund", "market rally"
+    ],
+    "Politics": [
+        "politics", "election", "congress", "senate",
+        "house of representatives", "white house", "legislation",
+        "biden", "trump", "democrat", "republican", "gop",
+        "governor", "ballot", "campaign", "executive order"
+    ],
+    "Epstein": [
+        "epstein", "jeffrey epstein", "ghislaine maxwell",
+        "epstein files", "epstein list"
+    ],
+    "Nuclear": [
+        "nuclear", "uranium", "reactor", "warhead",
+        "nonproliferation", "iaea", "fission", "nuclear weapon",
+        "nuclear energy", "nuclear deal", "enrichment"
+    ],
+}
 
 # --- INITIALIZE SESSION STATE ---
 if 'saved_custom_topics' not in st.session_state:
@@ -57,7 +93,7 @@ if 'applied_start_date' not in st.session_state:
     today = (current_utc - timedelta(hours=5)).date()
     st.session_state.applied_start_date = today - timedelta(days=1)
     st.session_state.applied_end_date = today 
-    # Pre-selects every single source in your dictionary by default
+    # Pre-selects every source except Wired and Hacker News by default
     st.session_state.applied_sources = [src for src in SOURCE_MAPPING.keys() if src not in ('wired', 'hacker-news')]
 
 # Memory for the AI Summary and its feed signature
@@ -67,6 +103,19 @@ if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
 
 # --- FUNCTIONS ---
+
+def build_api_query(topic):
+    """
+    Builds an expanded OR query string for the NewsAPI using the keyword
+    dictionary. Falls back to the topic name itself for custom topics.
+    NewsAPI limits query complexity, so we cap at 5 keywords per topic.
+    """
+    keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
+    # Cap at 5 to stay within NewsAPI query length limits
+    capped_keywords = keywords[:5]
+    return " OR ".join(f'"{kw}"' for kw in capped_keywords)
+
+
 # 6-Hour Cache & Parallel Fetching
 @st.cache_data(ttl=timedelta(hours=6), show_spinner=False)
 def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
@@ -78,7 +127,7 @@ def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
     def fetch_single_topic(topic):
         url = "https://newsapi.org/v2/everything"
         params = {
-            'q': f'"{topic}"' if topic != "General" else "General",
+            'q': build_api_query(topic),
             'searchIn': 'title,description', 
             'sources': ','.join(sources) if sources else '',
             'from': from_date.strftime('%Y-%m-%d'),
@@ -109,15 +158,25 @@ def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
     
     return valid_articles
 
+
 def classify_article(text, applied_topics):
+    """
+    Tags an article by checking its text against the expanded keyword list
+    for each topic. For custom topics not in TOPIC_KEYWORDS, falls back to
+    matching the topic name directly — same behavior as before.
+    """
     found_tags = []
     text_lower = text.lower()
     
     for topic in applied_topics:
-        if re.search(rf'\b{re.escape(topic.lower())}\b', text_lower):
-            found_tags.append(topic)
+        keywords = TOPIC_KEYWORDS.get(topic, [topic.lower()])
+        for kw in keywords:
+            if re.search(rf'\b{re.escape(kw)}\b', text_lower):
+                found_tags.append(topic)
+                break  # One keyword match is enough to tag this topic
             
     return list(dict.fromkeys(found_tags))
+
 
 @st.cache_data(show_spinner=False)
 def get_gemini_summary(prompt_data_string, date_context): 
