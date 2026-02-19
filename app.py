@@ -41,7 +41,7 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    today = date.today() - 1
+    today = date.today()
     yesterday = today - timedelta(days=1)
     st.session_state.applied_start_date = yesterday
     # 🕒 CHANGED: Set the default end date to today
@@ -237,10 +237,12 @@ api_query = " OR ".join(query_parts) if query_parts else "General"
 with st.sidebar:
     st.header("Advanced Filters")
     today = date.today()
+    yesterday = today - timedelta(days=1)
     
+    # 🕒 CHANGED: Default the UI widget to (yesterday, today)
     current_date_range = st.date_input(
         "Select Date Range", 
-        value=(st.session_state.applied_start_date, st.session_state.applied_end_date), 
+        value=(yesterday, today), 
         min_value=today - timedelta(days=29), 
         max_value=today, 
         format="MM/DD/YYYY"
@@ -251,7 +253,8 @@ with st.sidebar:
     elif len(current_date_range) == 1:
         current_start, current_end = current_date_range[0], current_date_range[0]
     else:
-        current_start, current_end = st.session_state.applied_start_date, st.session_state.applied_end_date
+        # 🕒 CHANGED: Fallback to yesterday and today
+        current_start, current_end = yesterday, today
     
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
