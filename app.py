@@ -433,12 +433,10 @@ else:
                     
                     prompt_data_string = "\n".join(prompt_lines)
                     
-                    if st.button("Generate Summary", type="primary"):
+if st.button("Generate Summary", type="primary"):
                         with st.spinner("Gemini is reading the news..."):
                             date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
                             summary_markdown = get_gemini_summary(prompt_data_string, date_context)
                             
-                            # 🌟 NEW: Wraps the AI markdown in the executive briefing CSS container
-                            st.markdown('<div class="ai-briefing-container">', unsafe_allow_html=True)
-                            st.markdown(summary_markdown)
-                            st.markdown('</div>', unsafe_allow_html=True)
+                            # 🌟 FIX: Bundled into a single string with blank lines so the markdown renders INSIDE the box
+                            st.markdown(f'<div class="ai-briefing-container">\n\n{summary_markdown}\n\n</div>', unsafe_allow_html=True)
