@@ -410,6 +410,11 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
+    /* Specifically targets the content area of the tab and nukes the top divider */
+[data-baseweb="tab-panel"] > div {
+    border-top: none !important;
+    padding-top: 0 !important;
+}
     </style>
 ''', unsafe_allow_html=True)
 
@@ -555,6 +560,8 @@ else:
                     st.info("Articles were found, but they were filtered out by your current chips.")
                 else:
                     st.info("No articles found matching these topics on the selected dates.")
+            else:
+                st.caption(f"Showing **{len(processed_articles)}** articles")
 
             for article in processed_articles:
                 title = article.get('title') or ""
