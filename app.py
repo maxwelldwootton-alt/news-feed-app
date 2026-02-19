@@ -41,7 +41,8 @@ if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
 if 'applied_start_date' not in st.session_state:
-    today = date.today()
+    current_utc = datetime.now(timezone.utc)
+    today = (current_utc - timedelta(hours=5)).date()
     st.session_state.applied_start_date = today - timedelta(days=3)
     st.session_state.applied_end_date = today - timedelta(days=1)
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
@@ -74,7 +75,6 @@ def fetch_news(query, sources, from_date, to_date, api_key):
         valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
         return valid_articles
     else:
-        # 🛑 CRITICAL FIX: We raise an error so Streamlit DOES NOT cache a failed/rate-limited response!
         error_msg = data.get('message', 'Unknown API Error')
         raise RuntimeError(error_msg)
 
@@ -219,26 +219,39 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# --- STRICT ACTIVE QUERY BUILDER ---
-active_topics = st.session_state.active_default + st.session_state.active_custom
+# --- MASTER QUERY BUILDER (OPTION 2) ---
+# We query the API for ALL default and saved custom topics at once.
+# This keeps the API query string perfectly static, so Streamlit caches it for 24 hours.
+all_master_topics = list(dict.fromkeys(DEFAULT_TOPICS + st.session_state.saved_custom_topics))
 query_parts = []
 
-for topic in active_topics:
+for topic in all_master_topics:
     part = f'"{topic}"' 
     if len(" OR ".join(query_parts + [part])) < 450: 
         query_parts.append(part)
 
-api_query = " OR ".join(query_parts) if query_parts else "General"
+master_api_query = " OR ".join(query_parts) if query_parts else "General"
+
+# The user's CURRENTLY selected chips (used entirely for local filtering)
+active_topics = st.session_state.active_default + st.session_state.active_custom
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Advanced Filters")
-    today = date.today()
     
+    current_utc = datetime.now(timezone.utc)
+    today = (current_utc - timedelta(hours=5)).date()
+    min_allowed_date = today - timedelta(days=29)
+    
+    safe_start = max(min(st.session_state.applied_start_date, today), min_allowed_date)
+    safe_end = max(min(st.session_state.applied_end_date, today), min_allowed_date)
+    if safe_start > safe_end:
+        safe_start = safe_end
+        
     current_date_range = st.date_input(
         "Select Date Range", 
-        value=(st.session_state.applied_start_date, st.session_state.applied_end_date), 
-        min_value=today - timedelta(days=29), 
+        value=(safe_start, safe_end), 
+        min_value=min_allowed_date, 
         max_value=today, 
         format="MM/DD/YYYY"
     )
@@ -248,7 +261,7 @@ with st.sidebar:
     elif len(current_date_range) == 1:
         current_start, current_end = current_date_range[0], current_date_range[0]
     else:
-        current_start, current_end = st.session_state.applied_start_date, st.session_state.applied_end_date
+        current_start, current_end = safe_start, safe_end
     
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
@@ -275,9 +288,9 @@ else:
     else:
         with st.spinner("Loading wire..."):
             
-            # 🛡️ Safely attempt to fetch news, catch rate limits!
             try:
-                raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+                # Passes the static MASTER query to hit the cache
+                raw_articles = fetch_news(master_api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             except Exception as e:
                 st.error(f"🚨 API Error: {e}")
                 raw_articles = []
@@ -291,8 +304,10 @@ else:
                 
                 text_to_analyze = f"{title} {description}"
                 
+                # We strictly classify against the ACTIVE topics, not the master query topics
                 article_tags = classify_article(text_to_analyze, active_topics)
                 
+                # 🛑 LOCAL FILTER: If the article doesn't match a currently checked chip, hide it immediately.
                 if not article_tags:
                     continue
                 
@@ -313,7 +328,7 @@ else:
             with tab_feed:
                 if not processed_articles:
                     if raw_articles:
-                        st.info("Articles were found, but all were filtered out by your Sensationalism setting.")
+                        st.info("Articles were found by the master query, but they were filtered out by your current chips or settings.")
                     else:
                         if not raw_articles:
                             st.info("No articles found matching these topics on the selected dates.")
