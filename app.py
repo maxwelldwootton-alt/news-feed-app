@@ -1,9 +1,11 @@
 import streamlit as st
+import streamlit.components.v1 as components # 🌟 Required for the copy-to-clipboard JS injection
 import requests
 import re
 from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
 import concurrent.futures # 🌟 Required for parallel API calls
+import urllib.parse # 🌟 Required to safely encode the AI summary text for the clipboard
 
 # --- CONFIGURATION ---
 NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
@@ -34,8 +36,7 @@ REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
 DEFAULT_TOPICS = [
-    "Tech", "AI", "Stocks",
-    "Politics", "Epstein", "Nuclear"
+    "Tech", "AI", "Stocks", "Politics", "Epstein", "Nuclear"
 ]
 
 # --- INITIALIZE SESSION STATE ---
@@ -286,6 +287,27 @@ st.markdown('''
         margin-top: 1rem;
     }
 
+    /* 🌟 NEW: AI Copy Button Styles */
+    .copy-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background-color: #374151;
+        color: #E5E7EB;
+        border: 1px solid #4B5563;
+        border-radius: 6px;
+        cursor: pointer;
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    .copy-btn:hover {
+        background-color: #4B5563;
+        color: white;
+    }
+
     /* CSS-only Floating Button */
     html { scroll-behavior: smooth; }
     .back-to-top {
@@ -359,11 +381,11 @@ st.markdown('''
 
 col_search, col_edit = st.columns([4, 1])
 with col_search:
-    st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Bitcoin, Election...", label_visibility="collapsed")
+    st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital, Election...", label_visibility="collapsed")
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
 
-# 🌟 NEW: Select All / Clear All Topic Controls
+# Select All / Clear All Topic Controls
 col_sel, col_clr, _ = st.columns([1, 1, 3])
 with col_sel:
     if st.button("☑️ Select All", use_container_width=True, help="Select all custom and trending topics"):
@@ -531,7 +553,15 @@ else:
                             st.rerun()
                             
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
-                    st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
+                    # 🌟 NEW: We safely encode the text and append the copy button to the end of the summary container
+                    encoded_summary = urllib.parse.quote(st.session_state.ai_summary_text)
+                    st.markdown(f'''
+                    <div class="ai-briefing-container">
+                        {st.session_state.ai_summary_text}
+                        <hr style="border-color: #363636; margin: 1.5rem 0 1rem 0;">
+                        <button id="copy-ai-btn" class="copy-btn" data-text="{encoded_summary}">📋 Copy to Clipboard</button>
+                    </div>
+                    ''', unsafe_allow_html=True)
 
 # THE BUTTON: Draws the physical button and snaps instantly to the #top-of-page target
 st.markdown(
@@ -543,4 +573,42 @@ st.markdown(
     </a>
     ''',
     unsafe_allow_html=True
+)
+
+# 🌟 NEW SCRIPT: Injects the listener for the Copy-to-Clipboard button
+components.html(
+    """
+    <script>
+    const parentDoc = window.parent.document;
+    
+    const findCopyBtn = setInterval(() => {
+        const btn = parentDoc.getElementById('copy-ai-btn');
+        if (btn && !btn.hasAttribute('data-copy-listener')) {
+            btn.setAttribute('data-copy-listener', 'true');
+            
+            btn.addEventListener('click', function() {
+                const textToCopy = decodeURIComponent(btn.getAttribute('data-text'));
+                
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = "✅ Copied!";
+                    btn.style.backgroundColor = "#059669"; // Green success color
+                    btn.style.borderColor = "#047857";
+                    
+                    setTimeout(() => { 
+                        btn.innerHTML = "📋 Copy to Clipboard"; 
+                        btn.style.backgroundColor = "#374151";
+                        btn.style.borderColor = "#4B5563";
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                    btn.innerHTML = "❌ Error Copying";
+                });
+            });
+        }
+    }, 250);
+    </script>
+    """,
+    height=0,
+    width=0
 )
