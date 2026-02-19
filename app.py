@@ -449,7 +449,7 @@ with st.sidebar:
 st.markdown('''
 <div class="masthead">
     <h1>📰 The Wire</h1>
-    <p>No algorithms. No comments. Just headlines.</p>
+    <p>No algorithms. No comments.</p>
 </div>
 ''', unsafe_allow_html=True)
 
