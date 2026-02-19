@@ -410,14 +410,6 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
-    /* Kills the secondary divider line while preserving the tab button borders */
-[data-baseweb="tab-list"] {
-    border-bottom: none !important;
-}
-
-[data-baseweb="tab-list"] > div {
-    display: none !important;
-}
     </style>
 ''', unsafe_allow_html=True)
 
