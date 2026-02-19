@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import re
 from textblob import TextBlob
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
 
 # --- CONFIGURATION ---
@@ -42,7 +42,6 @@ if 'active_custom' not in st.session_state:
 
 if 'applied_start_date' not in st.session_state:
     today = date.today()
-    # 🕒 WIDENED DEFAULT TIMEFRAME: Look back 3 days to ensure custom searches get hits
     st.session_state.applied_start_date = today - timedelta(days=3)
     st.session_state.applied_end_date = today - timedelta(days=1)
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
@@ -65,17 +64,19 @@ def fetch_news(query, sources, from_date, to_date, api_key):
         'pageSize': 100,
         'apiKey': api_key
     }
-    try:
-        response = requests.get(url, params=params)
-        data = response.json()
-        if data.get('status') == 'ok':
-            articles = data['articles']
-            valid_articles = [a for a in articles if a['title'] != "[Removed]"]
-            valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
-            return valid_articles
-        return []
-    except Exception:
-        return []
+    
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    if data.get('status') == 'ok':
+        articles = data['articles']
+        valid_articles = [a for a in articles if a['title'] != "[Removed]"]
+        valid_articles.sort(key=lambda x: x['publishedAt'], reverse=True)
+        return valid_articles
+    else:
+        # 🛑 CRITICAL FIX: We raise an error so Streamlit DOES NOT cache a failed/rate-limited response!
+        error_msg = data.get('message', 'Unknown API Error')
+        raise RuntimeError(error_msg)
 
 def analyze_sentiment(text):
     blob = TextBlob(text)
@@ -86,9 +87,6 @@ def classify_article(text, active_topics):
     text_lower = text.lower()
     
     for topic in active_topics:
-        # 🛑 SMARTER REGEX: Removed the trailing \b boundary. 
-        # This forces the word to START identically (so "app" doesn't match "apple"), 
-        # but allows for punctuation/plurals at the end (so "Election" matches "Elections" and "Apple's").
         if re.search(rf'\b{re.escape(topic.lower())}', text_lower):
             found_tags.append(topic)
             
@@ -277,7 +275,12 @@ else:
     else:
         with st.spinner("Loading wire..."):
             
-            raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+            # 🛡️ Safely attempt to fetch news, catch rate limits!
+            try:
+                raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+            except Exception as e:
+                st.error(f"🚨 API Error: {e}")
+                raw_articles = []
             
             processed_articles = []
             priority_list = st.session_state.active_custom + st.session_state.active_default
@@ -290,7 +293,6 @@ else:
                 
                 article_tags = classify_article(text_to_analyze, active_topics)
                 
-                # If neither the API nor our scanner found the chip text, hide it.
                 if not article_tags:
                     continue
                 
@@ -313,7 +315,8 @@ else:
                     if raw_articles:
                         st.info("Articles were found, but all were filtered out by your Sensationalism setting.")
                     else:
-                        st.info("No articles found matching these topics on the selected dates.")
+                        if not raw_articles:
+                            st.info("No articles found matching these topics on the selected dates.")
                     
                 for article in processed_articles:
                     title = article.get('title') or ""
@@ -347,7 +350,7 @@ else:
                     
                     st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                     
-       # --- TAB 2: AI OVERVIEW ---
+            # --- TAB 2: AI OVERVIEW ---
             with tab_ai:
                 st.header("✨ AI Overview")
                 
@@ -361,7 +364,6 @@ else:
                         desc = a.get('description') or "No Description"
                         content = a.get('content') or "No Content"
                         
-                        # Added Content to the prompt string fed to Gemini
                         prompt_lines.append(f"Categories: [{cat_string}] | Title: {title} | Desc: {desc} | Content: {content}")
                     
                     prompt_data_string = "\n".join(prompt_lines)
