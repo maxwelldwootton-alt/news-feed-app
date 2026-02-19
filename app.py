@@ -80,11 +80,9 @@ TOPIC_KEYWORDS = {
 if 'saved_custom_topics' not in st.session_state:
     st.session_state.saved_custom_topics = []
 
-if 'active_default' not in st.session_state:
-    st.session_state.active_default = DEFAULT_TOPICS.copy()
-
-if 'active_custom' not in st.session_state:
-    st.session_state.active_custom = []
+# 🌟 NEW: Unified state for all active topics
+if 'active_topics' not in st.session_state:
+    st.session_state.active_topics = DEFAULT_TOPICS.copy()
 
 if 'applied_topics' not in st.session_state:
     st.session_state.applied_topics = DEFAULT_TOPICS.copy()
@@ -190,23 +188,23 @@ def add_custom_topic():
     if raw_query:
         new_topic = raw_query.title()
 
-        if new_topic not in st.session_state.saved_custom_topics:
+        # Add to saved customs if it's completely new
+        if new_topic not in st.session_state.saved_custom_topics and new_topic not in DEFAULT_TOPICS:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
 
-        current_active = st.session_state.get('active_custom', [])
+        # Automatically select it in the unified active_topics list
+        current_active = st.session_state.get('active_topics', [])
         if new_topic not in current_active:
-            st.session_state.active_custom = current_active + [new_topic]
+            st.session_state.active_topics = current_active + [new_topic]
 
     st.session_state.search_input = ""
 
-# Callbacks for the Select All and Clear All buttons
+# Unified Callbacks for Select/Clear All
 def select_all_topics():
-    st.session_state.active_default = DEFAULT_TOPICS.copy()
-    st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
+    st.session_state.active_topics = DEFAULT_TOPICS + st.session_state.saved_custom_topics
 
 def clear_all_topics():
-    st.session_state.active_default = []
-    st.session_state.active_custom = []
+    st.session_state.active_topics = []
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
@@ -425,36 +423,34 @@ st.markdown('''
 
 col_search, col_edit = st.columns([4, 1])
 with col_search:
-    st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital, Election...", label_visibility="collapsed")
+    st.text_input("Add a custom topic:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital, Election...", label_visibility="collapsed")
 with col_edit:
-    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
+    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom topics")
 
-if st.session_state.saved_custom_topics:
-    st.write("**My Feeds**")
-    if is_edit_mode:
-        st.warning("🗑️ **Delete Mode Active:** Uncheck to delete.")
-        def on_delete_change():
-            remaining = st.session_state.temp_delete_widget
-            st.session_state.saved_custom_topics = remaining
-            st.session_state.active_custom = [t for t in st.session_state.active_custom if t in remaining]
-        st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
-    else:
-        st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
+# 🌟 Unified Delete Mode for Custom Topics
+if is_edit_mode and st.session_state.saved_custom_topics:
+    st.warning("🗑️ **Delete Mode Active:** Uncheck to permanently remove a custom topic.")
+    def on_delete_change():
+        remaining = st.session_state.temp_delete_widget
+        st.session_state.saved_custom_topics = remaining
+        # Ensure any deleted custom topic is also removed from active_topics
+        st.session_state.active_topics = [t for t in st.session_state.active_topics if t in DEFAULT_TOPICS or t in remaining]
+    st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
 
-# 🌟 CLEANED UP: Compact, Right-Aligned Utility Buttons!
-# Uses vertical_alignment="bottom" so they sit perfectly flush with the "Trending Topics" text.
+# 🌟 UNIFIED TOPICS DISPLAY
 col_title, col_sel, col_clr = st.columns([6, 2, 2], vertical_alignment="bottom")
 with col_title:
-    st.write("**Trending Topics**")
+    st.write("**Selected Topics**")
 with col_sel:
     st.button("Select All", on_click=select_all_topics, use_container_width=True)
 with col_clr:
     st.button("Clear All", on_click=clear_all_topics, use_container_width=True)
 
-st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
+all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
+st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
 
 # CONDITIONAL REFRESH BUTTON
-current_selected_topics = st.session_state.active_default + st.session_state.active_custom
+current_selected_topics = st.session_state.active_topics
 
 has_pending_changes = (
     set(current_selected_topics) != set(st.session_state.applied_topics) or
@@ -477,7 +473,7 @@ FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcm
 if not NEWS_API_KEYS:
     st.warning("⚠️ Please enter at least one valid NewsAPI key.")
 elif not st.session_state.applied_topics:
-    st.info("👈 Please select at least one feed category above and click 'Update Feed' to view articles.")
+    st.info("👈 Please select at least one topic above and click 'Update Feed' to view articles.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
