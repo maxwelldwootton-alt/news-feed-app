@@ -42,9 +42,10 @@ if 'active_custom' not in st.session_state:
 
 if 'applied_start_date' not in st.session_state:
     today = date.today()
-    # 🕒 WIDENED DEFAULT TIMEFRAME: Look back 3 days to ensure custom searches get hits
-    st.session_state.applied_start_date = today - timedelta(days=3)
-    st.session_state.applied_end_date = today - timedelta(days=1)
+    yesterday = today - timedelta(days=1)
+    st.session_state.applied_start_date = yesterday
+    # 🕒 CHANGED: Set the default end date to today
+    st.session_state.applied_end_date = today
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
     st.session_state.applied_emotional = True
 
