@@ -26,8 +26,8 @@ REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
 
 DEFAULT_TOPICS = [
-    "Technology", "Artificial Intelligence", "Stock Market", "Crypto", 
-    "Politics", "Epstein", "Nuclear", "Space Exploration"
+    "Tech", "AI", "Stocks", "Bitcoin", 
+    "Politics", "Epstein", "Nuclear", "Space"
 ]
 
 # --- INITIALIZE SESSION STATE ---
