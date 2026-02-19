@@ -172,6 +172,11 @@ st.markdown('''
     
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
+    /* Hide the Streamlit anchor link icons globally */
+    [data-testid="stHeaderActionElements"],
+    h1 > div > a, h2 > div > a, h3 > div > a {
+        display: none !important;
+    }
 
     /* Premium Masthead */
     .masthead {
@@ -472,9 +477,9 @@ else:
                 
                 st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                 
-        # --- TAB 2: AI OVERVIEW ---
+# --- TAB 2: AI OVERVIEW ---
         with tab_ai:
-            st.header("✨ AI Overview")
+            st.header("✨ AI Overview", anchor=False)
             
             if not processed_articles:
                 st.info("No articles available to summarize.")
