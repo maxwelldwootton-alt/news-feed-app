@@ -238,7 +238,7 @@ st.markdown('''
     /* 🌟 PREMIUM DOMINANT TABS */
     div[data-baseweb="tab-list"] {
         gap: 8px !important;
-        border-bottom: none !important;
+        border-bottom: 2px solid #363636 !important;
         margin-bottom: 24px !important;
         padding-bottom: 0 !important;
     }
