@@ -46,8 +46,8 @@ if 'applied_topics' not in st.session_state:
 if 'applied_start_date' not in st.session_state:
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
-    st.session_state.applied_start_date = today - timedelta(days=3)
-    st.session_state.applied_end_date = today - timedelta(days=1)
+    st.session_state.applied_start_date = today - timedelta(days=1)
+    st.session_state.applied_end_date = today
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
 
 # --- FUNCTIONS ---
