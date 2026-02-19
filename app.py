@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components # 🛑 NEW: Required to inject the scroll listener script
 import requests
 import re
 from datetime import datetime, timedelta, date, timezone
@@ -12,7 +13,6 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
 
 SOURCE_MAPPING = {
-    # --- Existing Sources ---
     'reuters': 'Reuters',
     'associated-press': 'Associated Press',
     'bloomberg': 'Bloomberg',
@@ -20,19 +20,7 @@ SOURCE_MAPPING = {
     'politico': 'Politico',
     'the-verge': 'The Verge',
     'bbc-news': 'BBC News',
-    'al-jazeera-english': 'Al Jazeera',
-
-    # --- Category 1: Markets & Money ---
-    'the-wall-street-journal': 'WSJ',
-    'cnbc': 'CNBC',
-    'business-insider': 'Business Insider',
-    'financial-post': 'Financial Post', # Good alternative to FT on NewsAPI
-
-    # --- Category 2: Deep Tech ---
-    'techcrunch': 'TechCrunch',
-    'wired': 'Wired',
-    'ars-technica': 'Ars Technica',
-    'hacker-news': 'Hacker News'
+    'al-jazeera-english': 'Al Jazeera'
 }
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
@@ -256,8 +244,58 @@ st.markdown('''
         line-height: 1.8;
         margin-top: 1rem;
     }
+
+    /* 🌟 NEW: Scroll-to-Top Floating Button Styles */
+    #scroll-to-top-btn {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background-color: #3B82F6;
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        cursor: pointer;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        opacity: 0;
+        pointer-events: none; /* Prevents invisible clicks */
+        transform: translateY(20px); /* Starts slightly lowered */
+    }
+    #scroll-to-top-btn.visible {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0); /* Slides up into place */
+    }
+    #scroll-to-top-btn:hover {
+        background-color: #2563EB;
+        transform: translateY(-3px) scale(1.05); /* Lifts up and grows slightly on hover */
+        box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+    }
+    #scroll-to-top-btn svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+    }
     </style>
 ''' , unsafe_allow_html=True)
+
+# 🌟 NEW: Injecting the actual button HTML into the app
+st.markdown("""
+<button id="scroll-to-top-btn" title="Return to top" onclick="
+    const scrollContainer = window.parent.document.querySelector('[data-testid=&quot;stAppViewContainer&quot;]') || window.parent.document.querySelector('.main') || window.parent.window;
+    scrollContainer.scrollTo({top: 0, behavior: 'smooth'});
+">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+        <path d="M214.6 41.4c-12.5-12.5-32.8-12.5-45.3 0l-160 160c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 141.2V448c0 17.7 14.3 32 32 32s32-14.3 32-32V141.2L329.4 246.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-160-160z"/>
+    </svg>
+</button>
+""", unsafe_allow_html=True)
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -360,121 +398,150 @@ else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
     else:
+        try:
+            raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+        except Exception as e:
+            st.error(f"🚨 API Error: {e}")
+            raw_articles = []
+        
+        processed_articles = []
+        seen_titles = set()
+        
+        for article in raw_articles:
+            title = article.get('title') or ""
             
-            try:
-                raw_articles = fetch_news(api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
-            except Exception as e:
-                st.error(f"🚨 API Error: {e}")
-                raw_articles = []
+            # Deduplicate exact titles
+            if title in seen_titles:
+                continue
+            seen_titles.add(title)
             
-            processed_articles = []
-            seen_titles = set()
+            description = article.get('description') or ""
+            text_to_analyze = f"{title} {description}"
             
-            for article in raw_articles:
-                title = article.get('title') or ""
-                
-                # Deduplicate exact titles
-                if title in seen_titles:
-                    continue
-                seen_titles.add(title)
-                
-                description = article.get('description') or ""
-                text_to_analyze = f"{title} {description}"
-                
-                article_tags = classify_article(text_to_analyze, st.session_state.applied_topics)
-                
-                if not article_tags:
-                    continue
-                
-                # Sort tags so the ones you care about appear first
-                article_tags.sort(key=lambda x: st.session_state.applied_topics.index(x) if x in st.session_state.applied_topics else 999)
-                
-                article['computed_tags'] = article_tags
-                processed_articles.append(article)
+            article_tags = classify_article(text_to_analyze, st.session_state.applied_topics)
+            
+            if not article_tags:
+                continue
+            
+            # Sort tags so the ones you care about appear first
+            article_tags.sort(key=lambda x: st.session_state.applied_topics.index(x) if x in st.session_state.applied_topics else 999)
+            
+            article['computed_tags'] = article_tags
+            processed_articles.append(article)
 
-            tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
-            
-            # --- TAB 1: THE FEED ---
-            with tab_feed:
-                if not processed_articles:
-                    if raw_articles:
-                        st.info("Articles were found, but they were filtered out by your current chips.")
-                    else:
-                        st.info("No articles found matching these topics on the selected dates.")
+        tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
+        
+        # --- TAB 1: THE FEED ---
+        with tab_feed:
+            if not processed_articles:
+                if raw_articles:
+                    st.info("Articles were found, but they were filtered out by your current chips.")
                 else:
-                    st.caption(f"Showing **{len(processed_articles)}** articles")
-                    
-                for article in processed_articles:
-                    title = article.get('title') or ""
-                    url = article.get('url') or "#"
-                    image_url = article.get('urlToImage')
-                    description = article.get('description') or ""
-                    
-                    tags_html = ""
-                    article_tags = article['computed_tags']
-                    visible_tags = article_tags[:2]
-                    hidden_tags = article_tags[2:]
-                    overflow_count = len(hidden_tags)
-                    
-                    for tag in visible_tags:
-                        tags_html += f'<span class="chip chip-category">{tag}</span>'
-                    
-                    if overflow_count > 0:
-                        tooltip_text = ", ".join(hidden_tags)
-                        tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
-                    
-                    iso_date = article.get('publishedAt', '')[:10]
-                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
-                    
-                    api_source_name = article.get('source', {}).get('name', 'Unknown')
-                    api_source_id = article.get('source', {}).get('id', '') 
-                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
-                    
-                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                    
-                    if image_url:
-                        img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.onerror=null; this.src=\'{FALLBACK_IMG}\';"></div>'
-                    else:
-                        img_html = f'<div class="img-column"><img src="{FALLBACK_IMG}" alt="Placeholder"></div>'
-                    
-                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
-                    
-            # --- TAB 2: AI OVERVIEW ---
-            with tab_ai:
-                st.header("✨ AI Overview")
+                    st.info("No articles found matching these topics on the selected dates.")
+            else:
+                st.caption(f"Showing **{len(processed_articles)}** articles")
                 
-                if not processed_articles:
-                    st.info("No articles available to summarize.")
+            for article in processed_articles:
+                title = article.get('title') or ""
+                url = article.get('url') or "#"
+                image_url = article.get('urlToImage')
+                description = article.get('description') or ""
+                
+                tags_html = ""
+                article_tags = article['computed_tags']
+                visible_tags = article_tags[:2]
+                hidden_tags = article_tags[2:]
+                overflow_count = len(hidden_tags)
+                
+                for tag in visible_tags:
+                    tags_html += f'<span class="chip chip-category">{tag}</span>'
+                
+                if overflow_count > 0:
+                    tooltip_text = ", ".join(hidden_tags)
+                    tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
+                
+                iso_date = article.get('publishedAt', '')[:10]
+                published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
+                
+                api_source_name = article.get('source', {}).get('name', 'Unknown')
+                api_source_id = article.get('source', {}).get('id', '') 
+                display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+                
+                source_chip = f'<span class="chip chip-source">{display_source}</span>'
+                
+                if image_url:
+                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.onerror=null; this.src=\'{FALLBACK_IMG}\';"></div>'
                 else:
-                    prompt_lines = []
-                    for a in processed_articles[:30]:
-                        cat_string = ", ".join(a['computed_tags'][:2])
-                        title = a.get('title') or "No Title"
-                        desc = a.get('description') or "No Description"
-                        content = a.get('content') or "No Content"
-                        
-                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {title} | Desc: {desc} | Content: {content}")
+                    img_html = f'<div class="img-column"><img src="{FALLBACK_IMG}" alt="Placeholder"></div>'
+                
+                st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
+                
+        # --- TAB 2: AI OVERVIEW ---
+        with tab_ai:
+            st.header("✨ AI Overview")
+            
+            if not processed_articles:
+                st.info("No articles available to summarize.")
+            else:
+                prompt_lines = []
+                for a in processed_articles[:30]:
+                    cat_string = ", ".join(a['computed_tags'][:2])
+                    title = a.get('title') or "No Title"
+                    desc = a.get('description') or "No Description"
+                    content = a.get('content') or "No Content"
                     
-                    prompt_data_string = "\n".join(prompt_lines)
+                    prompt_lines.append(f"Categories: [{cat_string}] | Title: {title} | Desc: {desc} | Content: {content}")
+                
+                prompt_data_string = "\n".join(prompt_lines)
+                
+                # Create a unique "signature" for this exact feed state
+                current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}"
+                
+                # Check if we already have a valid summary for this exact feed combination
+                if st.session_state.get('ai_summary_signature') != current_feed_signature:
                     
-                    # Create a unique "signature" for this exact feed state
-                    current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}"
-                    
-                    # Check if we already have a valid summary for this exact feed combination
-                    if st.session_state.get('ai_summary_signature') != current_feed_signature:
-                        
-                        if st.button("Generate Summary", type="primary"):
-                            with st.spinner("Gemini is reading the news..."):
-                                date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
-                                summary_markdown = get_gemini_summary(prompt_data_string, date_context)
-                                
-                                # Save the text and the signature to memory
-                                st.session_state.ai_summary_text = summary_markdown
-                                st.session_state.ai_summary_signature = current_feed_signature
-                                
-                                # Instantly reload the page to hide the button
-                                st.rerun()
-                                
-                    # If the signature matches, display the saved summary WITHOUT the button
-                    if st.session_state.get('ai_summary_signature') == current_feed_signature:
-                        st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
+                    if st.button("Generate Summary", type="primary"):
+                        with st.spinner("Gemini is reading the news..."):
+                            date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
+                            summary_markdown = get_gemini_summary(prompt_data_string, date_context)
+                            
+                            # Save the text and the signature to memory
+                            st.session_state.ai_summary_text = summary_markdown
+                            st.session_state.ai_summary_signature = current_feed_signature
+                            
+                            # Instantly reload the page to hide the button
+                            st.rerun()
+                            
+                # If the signature matches, display the saved summary WITHOUT the button
+                if st.session_state.get('ai_summary_signature') == current_feed_signature:
+                    st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
+
+
+# 🌟 NEW: Javascript to handle the dynamic scroll detection
+components.html(
+    """
+    <script>
+    const parentDoc = window.parent.document;
+    const scrollContainer = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main') || parentDoc.window;
+    
+    if (!scrollContainer.hasAttribute('data-scroll-listener')) {
+        scrollContainer.setAttribute('data-scroll-listener', 'true');
+        
+        scrollContainer.addEventListener('scroll', function() {
+            const btn = parentDoc.getElementById("scroll-to-top-btn");
+            if (btn) {
+                const scrollTop = scrollContainer.scrollTop || parentDoc.documentElement.scrollTop;
+                // Show button when scrolled down 400px
+                if (scrollTop > 400) {
+                    btn.classList.add('visible');
+                } else {
+                    btn.classList.remove('visible');
+                }
+            }
+        });
+    }
+    </script>
+    """,
+    height=0,
+    width=0,
+)
