@@ -29,7 +29,6 @@ SOURCE_MAPPING = {
     'financial-post': 'Financial Post', 
     'techcrunch': 'TechCrunch',
     'wired': 'Wired',
-    'ars-technica': 'Ars Technica',
     'hacker-news': 'Hacker News'
 }
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
@@ -59,7 +58,7 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_start_date = today - timedelta(days=1)
     st.session_state.applied_end_date = today 
     # Pre-selects every single source in your dictionary by default
-    st.session_state.applied_sources = list(SOURCE_MAPPING.keys())
+    st.session_state.applied_sources = [src for src in SOURCE_MAPPING.keys() if src not in ('wired', 'hacker-news')]
 
 # Memory for the AI Summary and its feed signature
 if 'ai_summary_text' not in st.session_state:
