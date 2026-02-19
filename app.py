@@ -265,6 +265,10 @@ st.markdown('''
         border-bottom: 3px solid #60A5FA !important; /* Thick glowing border */
         background-color: rgba(59, 130, 246, 0.1) !important; /* Subtle blue background tint */
     }
+    /* 🌟 ADD THIS HERE TO KILL THE SECONDARY LINE */
+    div[data-baseweb="tab-panel"] {
+        border-top: none !important;
+    }
 
     .masthead {
         text-align: center;
