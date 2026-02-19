@@ -347,7 +347,7 @@ else:
                     
                     st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                     
-            # --- TAB 2: AI OVERVIEW ---
+       # --- TAB 2: AI OVERVIEW ---
             with tab_ai:
                 st.header("✨ AI Overview")
                 
@@ -357,7 +357,12 @@ else:
                     prompt_lines = []
                     for a in processed_articles[:30]:
                         cat_string = ", ".join(a['computed_tags'][:2])
-                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {a.get('title')} | Desc: {a.get('description')}")
+                        title = a.get('title') or "No Title"
+                        desc = a.get('description') or "No Description"
+                        content = a.get('content') or "No Content"
+                        
+                        # Added Content to the prompt string fed to Gemini
+                        prompt_lines.append(f"Categories: [{cat_string}] | Title: {title} | Desc: {desc} | Content: {content}")
                     
                     prompt_data_string = "\n".join(prompt_lines)
                     
