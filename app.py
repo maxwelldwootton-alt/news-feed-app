@@ -410,7 +410,10 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
-    hr { display: none !important; }
+    /* Specifically target and hide only the horizontal rule following the tabs */
+div[data-testid="stTab"] + hr {
+    display: none !important;
+}
     </style>
 ''', unsafe_allow_html=True)
 
