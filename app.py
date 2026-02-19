@@ -101,17 +101,30 @@ if 'ai_summary_text' not in st.session_state:
 if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
 
-# --- QUERY PARAM DELETION HANDLER ---
-# When an X button is clicked on a custom chip, JS sets ?delete_topic=TopicName.
-# We catch it here, remove the topic, clear the param, and rerun cleanly.
+# --- QUERY PARAM CHIP ACTION HANDLER ---
+# Chip X buttons set ?delete_topic=Name, chip body clicks set ?toggle_topic=Name.
+# Handled here at the top so state is correct before any rendering happens.
 _delete_topic = st.query_params.get("delete_topic")
 if _delete_topic:
+    topic_decoded = urllib.parse.unquote(_delete_topic)
     st.session_state.saved_custom_topics = [
-        t for t in st.session_state.saved_custom_topics if t != _delete_topic
+        t for t in st.session_state.saved_custom_topics if t != topic_decoded
     ]
     st.session_state.active_custom = [
-        t for t in st.session_state.active_custom if t != _delete_topic
+        t for t in st.session_state.active_custom if t != topic_decoded
     ]
+    st.query_params.clear()
+    st.rerun()
+
+_toggle_topic = st.query_params.get("toggle_topic")
+if _toggle_topic:
+    topic_decoded = urllib.parse.unquote(_toggle_topic)
+    if topic_decoded in st.session_state.active_custom:
+        st.session_state.active_custom = [
+            t for t in st.session_state.active_custom if t != topic_decoded
+        ]
+    else:
+        st.session_state.active_custom.append(topic_decoded)
     st.query_params.clear()
     st.rerun()
 
@@ -648,25 +661,21 @@ with col_clr:
 if st.session_state.saved_custom_topics:
     st.write("**My Feeds**")
 
-    # Render custom chips as HTML with inline X delete buttons.
-    # Clicking X sets ?delete_topic=Name via JS, which Streamlit catches on rerun.
+    # Chips use data-topic attributes for both toggle and delete.
+    # Click handling is done via event delegation in the injected script below,
+    # which already runs in the parent document context — no inline JS needed.
     chips_html = '<div class="custom-chips-row">'
     for topic in st.session_state.saved_custom_topics:
         is_active = topic in st.session_state.active_custom
         state_class = "active" if is_active else "inactive"
         encoded = urllib.parse.quote(topic)
         chips_html += f'''
-            <span class="custom-chip {state_class}">
+            <span class="custom-chip {state_class}" data-topic="{encoded}" title="Click to toggle">
                 {topic}
-                <button class="custom-chip-delete"
-                    onclick="window.parent.location.search = '?delete_topic={encoded}'"
-                    title="Remove {topic}">✕</button>
+                <button class="custom-chip-delete" data-topic="{encoded}" title="Remove {topic}">✕</button>
             </span>'''
     chips_html += '</div>'
     st.markdown(chips_html, unsafe_allow_html=True)
-
-    # No st.pills needed here — active_custom is managed purely via session state
-    # by add_custom_topic(), Select All, Clear All, and the deletion handler above.
 
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
@@ -853,6 +862,33 @@ components.html(
     const parentDoc = window.parent.document;
     const parentWin = window.parent;
     
+    // --- CHIP CLICK HANDLER ---
+    // Uses event delegation on the parent doc so it works regardless of Streamlit rerenders.
+    // Toggle: clicking chip body sets ?toggle_topic=Name
+    // Delete: clicking X button sets ?delete_topic=Name
+    function buildUrl(paramName, value) {
+        const url = new URL(parentWin.location.href);
+        url.searchParams.set(paramName, value);
+        return url.toString();
+    }
+
+    parentDoc.addEventListener('click', function(e) {
+        // Check for X delete button first (more specific)
+        const deleteBtn = e.target.closest('.custom-chip-delete');
+        if (deleteBtn) {
+            e.stopPropagation();
+            const topic = deleteBtn.getAttribute('data-topic');
+            if (topic) parentWin.location.href = buildUrl('delete_topic', topic);
+            return;
+        }
+        // Check for chip body toggle
+        const chip = e.target.closest('.custom-chip');
+        if (chip) {
+            const topic = chip.getAttribute('data-topic');
+            if (topic) parentWin.location.href = buildUrl('toggle_topic', topic);
+        }
+    });
+
     const findCopyBtn = setInterval(() => {
         const btn = parentDoc.getElementById('copy-ai-btn');
         if (btn && !btn.hasAttribute('data-copy-listener')) {
