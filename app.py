@@ -39,6 +39,7 @@ if 'active_default' not in st.session_state:
 if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
+# Stores the topics that were actually submitted to the API
 if 'applied_topics' not in st.session_state:
     st.session_state.applied_topics = DEFAULT_TOPICS.copy()
 
@@ -48,6 +49,12 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_start_date = today - timedelta(days=1)
     st.session_state.applied_end_date = today 
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
+
+# Memory for the AI Summary and its feed signature
+if 'ai_summary_text' not in st.session_state:
+    st.session_state.ai_summary_text = None
+if 'ai_summary_signature' not in st.session_state:
+    st.session_state.ai_summary_signature = None
 
 # --- FUNCTIONS ---
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -137,7 +144,7 @@ st.markdown('''
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
 
-    /* 🌟 NEW: Premium Masthead */
+    /* Premium Masthead */
     .masthead {
         text-align: center;
         padding: 2rem 0 1.5rem 0;
@@ -193,7 +200,7 @@ st.markdown('''
     .card-container:hover .headline { color: #60A5FA; }
     .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
     
-    /* 🌟 NEW: Tactile Hover Effects for Chips */
+    /* Tactile Hover Effects for Chips */
     .chip { 
         display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; 
         font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; 
@@ -223,7 +230,7 @@ st.markdown('''
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
 
-    /* 🌟 NEW: Executive Briefing AI Container */
+    /* Executive Briefing AI Container */
     .ai-briefing-container {
         background: #1E1E24;
         border: 1px solid #2E2F38;
@@ -328,7 +335,7 @@ for topic in st.session_state.applied_topics:
 
 api_query = " OR ".join(query_parts) if query_parts else "General"
 
-# 🌟 NEW: The seamless dark fallback image (Base64 SVG to avoid external requests breaking)
+# The seamless dark fallback image (Base64 SVG to avoid external requests breaking)
 FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAnIGhlaWdodD0nMTIwJz48cmVjdCB3aWR0aD0nMTIwJyBoZWlnaHQ9JzEyMCcgZmlsbD0nIzFGMjkzNycvPjx0ZXh0IHg9JzUwJScgeT0nNTAlJyBmb250LXNpemU9JzQwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBkeT0nLjNlbSc+8J+TsDwvdGV4dD48L3N2Zz4="
 
 # --- MAIN APP BODY ---
@@ -349,11 +356,17 @@ else:
                 raw_articles = []
             
             processed_articles = []
+            seen_titles = set()
             
             for article in raw_articles:
                 title = article.get('title') or ""
-                description = article.get('description') or ""
                 
+                # Deduplicate exact titles
+                if title in seen_titles:
+                    continue
+                seen_titles.add(title)
+                
+                description = article.get('description') or ""
                 text_to_analyze = f"{title} {description}"
                 
                 article_tags = classify_article(text_to_analyze, st.session_state.applied_topics)
@@ -407,7 +420,6 @@ else:
                     
                     source_chip = f'<span class="chip chip-source">{display_source}</span>'
                     
-                    # 🌟 NEW: The foolproof layout stability image block
                     if image_url:
                         img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.onerror=null; this.src=\'{FALLBACK_IMG}\';"></div>'
                     else:
@@ -433,10 +445,24 @@ else:
                     
                     prompt_data_string = "\n".join(prompt_lines)
                     
-if st.button("Generate Summary", type="primary"):
-                        with st.spinner("Gemini is reading the news..."):
-                            date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
-                            summary_markdown = get_gemini_summary(prompt_data_string, date_context)
-                            
-                            # 🌟 FIX: Bundled into a single string with blank lines so the markdown renders INSIDE the box
-                            st.markdown(f'<div class="ai-briefing-container">\n\n{summary_markdown}\n\n</div>', unsafe_allow_html=True)
+                    # Create a unique "signature" for this exact feed state
+                    current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}"
+                    
+                    # Check if we already have a valid summary for this exact feed combination
+                    if st.session_state.get('ai_summary_signature') != current_feed_signature:
+                        
+                        if st.button("Generate Summary", type="primary"):
+                            with st.spinner("Gemini is reading the news..."):
+                                date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
+                                summary_markdown = get_gemini_summary(prompt_data_string, date_context)
+                                
+                                # Save the text and the signature to memory
+                                st.session_state.ai_summary_text = summary_markdown
+                                st.session_state.ai_summary_signature = current_feed_signature
+                                
+                                # Instantly reload the page to hide the button
+                                st.rerun()
+                                
+                    # If the signature matches, display the saved summary WITHOUT the button
+                    if st.session_state.get('ai_summary_signature') == current_feed_signature:
+                        st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
