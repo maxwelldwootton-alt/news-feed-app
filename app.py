@@ -416,6 +416,13 @@ st.markdown('''
 div[data-baseweb="tab-panel"] {
     padding-top: 0 !important;
 }
+/* Smaller Select/Clear All buttons */
+div[data-testid="stColumns"] .stButton button {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+    min-height: 0 !important;
+    height: auto !important;
+}
     </style>
 ''', unsafe_allow_html=True)
 
@@ -482,7 +489,7 @@ all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
 st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
 
 # TUCKED BUTTONS: Small columns right below the chips
-col_sel, col_clr, _ = st.columns([1.5, 1.5, 6])
+col_sel, col_clr, _ = st.columns([1,1,7])
 with col_sel:
     st.button("Select All", on_click=select_all_topics, use_container_width=True)
 with col_clr:
