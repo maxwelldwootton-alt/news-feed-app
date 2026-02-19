@@ -235,6 +235,37 @@ st.markdown('''
         cursor: default !important;
     }
 
+    /* 🌟 PREMIUM DOMINANT TABS */
+    div[data-baseweb="tab-list"] {
+        gap: 8px !important;
+        border-bottom: 2px solid #363636 !important;
+        margin-bottom: 24px !important;
+        padding-bottom: 0 !important;
+    }
+    button[data-baseweb="tab"] {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 1.15rem !important; /* Larger text */
+        font-weight: 600 !important;
+        color: #9CA3AF !important;
+        padding: 12px 24px !important; /* Bigger click target */
+        border-radius: 8px 8px 0 0 !important; /* Rounded top corners */
+        border: none !important;
+        border-bottom: 3px solid transparent !important;
+        background-color: transparent !important;
+        transition: all 0.2s ease !important;
+    }
+    /* Hover state for unselected tabs */
+    button[data-baseweb="tab"]:hover {
+        color: #F3F4F6 !important;
+        background-color: #2E2F38 !important; /* Subtle dark gray hover */
+    }
+    /* Active/Selected tab state */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #60A5FA !important; /* Premium Blue */
+        border-bottom: 3px solid #60A5FA !important; /* Thick glowing border */
+        background-color: rgba(59, 130, 246, 0.1) !important; /* Subtle blue background tint */
+    }
+
     .masthead {
         text-align: center;
         padding: 2rem 0 1.5rem 0;
@@ -437,13 +468,13 @@ if is_edit_mode and st.session_state.saved_custom_topics:
         st.session_state.active_topics = [t for t in st.session_state.active_topics if t in DEFAULT_TOPICS or t in remaining]
     st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
 
-# 🌟 UNIFIED TOPICS DISPLAY
+# UNIFIED TOPICS DISPLAY
 st.write("**Selected Topics**")
 
 all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
 st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
 
-# 🌟 TUCKED BUTTONS: Small columns right below the chips
+# TUCKED BUTTONS: Small columns right below the chips
 col_sel, col_clr, _ = st.columns([1.5, 1.5, 6])
 with col_sel:
     st.button("Select All", on_click=select_all_topics, use_container_width=True)
