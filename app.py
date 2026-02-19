@@ -70,7 +70,7 @@ if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
 
 # --- FUNCTIONS ---
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=timedelta(hours=12), show_spinner=False)
 def fetch_news(query, sources, from_date, to_date, api_key):
     url = "https://newsapi.org/v2/everything"
     if sources:
