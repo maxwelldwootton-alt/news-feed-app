@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components 
 import requests
 import re
 from datetime import datetime, timedelta, date, timezone
@@ -20,7 +19,15 @@ SOURCE_MAPPING = {
     'politico': 'Politico',
     'the-verge': 'The Verge',
     'bbc-news': 'BBC News',
-    'al-jazeera-english': 'Al Jazeera'
+    'al-jazeera-english': 'Al Jazeera',
+    'the-wall-street-journal': 'WSJ',
+    'cnbc': 'CNBC',
+    'business-insider': 'Business Insider',
+    'financial-post': 'Financial Post', 
+    'techcrunch': 'TechCrunch',
+    'wired': 'Wired',
+    'ars-technica': 'Ars Technica',
+    'hacker-news': 'Hacker News'
 }
 REVERSE_MAPPING = {v: k for k, v in SOURCE_MAPPING.items()}
 NEUTRAL_SOURCES = ['reuters', 'associated-press', 'bloomberg', 'axios', 'politico']
@@ -40,6 +47,7 @@ if 'active_default' not in st.session_state:
 if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
+# Stores the topics that were actually submitted to the API
 if 'applied_topics' not in st.session_state:
     st.session_state.applied_topics = DEFAULT_TOPICS.copy()
 
@@ -50,6 +58,7 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_end_date = today 
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
 
+# Memory for the AI Summary and its feed signature
 if 'ai_summary_text' not in st.session_state:
     st.session_state.ai_summary_text = None
 if 'ai_summary_signature' not in st.session_state:
@@ -120,15 +129,21 @@ def add_custom_topic():
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
+        
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
+            
         current_active = st.session_state.get('active_custom', [])
         if new_topic not in current_active:
             st.session_state.active_custom = current_active + [new_topic]
+            
     st.session_state.search_input = ""
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
+
+# 🌟 NEW: The invisible target at the very top of the page for smooth scrolling
+st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
 
 # --- CSS STYLING ---
 st.markdown('''
@@ -136,6 +151,7 @@ st.markdown('''
     @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    html { scroll-behavior: smooth; } /* Enables smooth scrolling natively */
     
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
@@ -238,6 +254,34 @@ st.markdown('''
         font-family: 'Inter', sans-serif;
         line-height: 1.8;
         margin-top: 1rem;
+    }
+
+    /* 🌟 NEW: CSS-only Floating Button */
+    .back-to-top {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 50px;
+        height: 50px;
+        background-color: #3B82F6;
+        color: white !important;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        z-index: 99999;
+        text-decoration: none;
+        transition: all 0.3s ease;
+    }
+    .back-to-top:hover {
+        background-color: #2563EB;
+        transform: translateY(-3px) scale(1.05);
+    }
+    .back-to-top svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
     }
     </style>
 ''' , unsafe_allow_html=True)
@@ -452,92 +496,14 @@ else:
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
 
-
-# 🌟 BULLETPROOF JAVASCRIPT: Injects a floating action button directly into the main browser DOM
-components.html(
-    """
-    <script>
-    const parentDoc = window.parent.document;
-    const parentWin = window.parent;
-    
-    // Only add the button if it doesn't already exist
-    if (!parentDoc.getElementById('custom-scroll-btn')) {
-        const btn = parentDoc.createElement('button');
-        btn.id = 'custom-scroll-btn';
-        btn.title = 'Return to top';
-        
-        // Add the UP arrow SVG
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" style="width:20px; height:20px; fill:currentColor;"><path d="M214.6 41.4c-12.5-12.5-32.8-12.5-45.3 0l-160 160c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 141.2V448c0 17.7 14.3 32 32 32s32-14.3 32-32V141.2L329.4 246.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-160-160z"/></svg>';
-        
-        // Apply inline CSS to bypass Streamlit's class sanitization
-        Object.assign(btn.style, {
-            position: 'fixed',
-            bottom: '30px',
-            right: '30px',
-            width: '50px',
-            height: '50px',
-            borderRadius: '50%',
-            backgroundColor: '#3B82F6',
-            color: 'white',
-            border: 'none',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-            cursor: 'pointer',
-            zIndex: '999999',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: '0',
-            pointerEvents: 'none',
-            transform: 'translateY(20px)',
-            transition: 'all 0.3s ease'
-        });
-
-        // Add to the main browser window
-        parentDoc.body.appendChild(btn);
-
-        // Add visual hover effects
-        btn.onmouseover = () => {
-            btn.style.backgroundColor = '#2563EB';
-            btn.style.transform = 'translateY(-3px) scale(1.05)';
-        };
-        btn.onmouseout = () => {
-            btn.style.backgroundColor = '#3B82F6';
-            if (btn.style.opacity === '1') {
-                btn.style.transform = 'translateY(0) scale(1)';
-            }
-        };
-
-        // Smooth scroll action
-        btn.onclick = () => {
-            const container = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main') || parentWin;
-            if (container && container.scrollTo) {
-                container.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-            parentWin.scrollTo({ top: 0, behavior: 'smooth' });
-        };
-
-        // Scroll listener to toggle visibility
-        function checkScroll() {
-            const container = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main') || parentWin;
-            const scrollTop = container.scrollTop || parentWin.scrollY || parentDoc.documentElement.scrollTop;
-            
-            if (scrollTop > 400) {
-                btn.style.opacity = '1';
-                btn.style.pointerEvents = 'auto';
-                btn.style.transform = 'translateY(0) scale(1)';
-            } else {
-                btn.style.opacity = '0';
-                btn.style.pointerEvents = 'none';
-                btn.style.transform = 'translateY(20px) scale(1)';
-            }
-        }
-        
-        // Listen to everything just in case depending on the Streamlit version
-        parentDoc.addEventListener('scroll', checkScroll, true); 
-        parentWin.addEventListener('scroll', checkScroll);
-    }
-    </script>
-    """,
-    height=0,
-    width=0
+# 🌟 BULLETPROOF ANCHOR LINK: Uses native HTML/CSS smooth scrolling
+st.markdown(
+    '''
+    <a href="#top-of-page" class="back-to-top" title="Return to top">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+            <path d="M214.6 41.4c-12.5-12.5-32.8-12.5-45.3 0l-160 160c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 141.2V448c0 17.7 14.3 32 32 32s32-14.3 32-32V141.2L329.4 246.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-160-160z"/>
+        </svg>
+    </a>
+    ''',
+    unsafe_allow_html=True
 )
