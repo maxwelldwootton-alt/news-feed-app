@@ -555,8 +555,6 @@ else:
                     st.info("Articles were found, but they were filtered out by your current chips.")
                 else:
                     st.info("No articles found matching these topics on the selected dates.")
-            else:
-                st.caption(f"Showing **{len(processed_articles)}** articles")
 
             for article in processed_articles:
                 title = article.get('title') or ""
