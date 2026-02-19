@@ -507,7 +507,7 @@ else:
     else:
         try:
             # Calling the parallel fetch function with a direct list of topics
-            raw_articles = fetch_news_parallel(st.session_state.applied_topics, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
+            raw_articles = fetch_news_parallel(st.session_state.applied_topics, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEYS)
         except Exception as e:
             st.error(f"🚨 API Error: {e}")
             raw_articles = []
