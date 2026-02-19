@@ -324,8 +324,97 @@ st.markdown('''
     }
     .chip-overflow:hover .tooltip-text, .chip-overflow:active .tooltip-text { visibility: visible; opacity: 1; }
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
+
+    /* =========================================================
+       SEARCH BAR — polished, prominent, glowing focus state
+    ========================================================= */
+    [data-testid="stTextInput"] input {
+        background-color: #1A1B23 !important;
+        border: 2px solid #374151 !important;
+        border-radius: 10px !important;
+        color: #F3F4F6 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 14px !important;
+        padding: 10px 16px !important;
+        transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
+    }
+    [data-testid="stTextInput"] input:focus {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
+        outline: none !important;
+    }
+    [data-testid="stTextInput"] input::placeholder {
+        color: #4B5563 !important;
+        font-style: italic !important;
+    }
+
+    /* =========================================================
+       TOPIC PILLS — strong active vs inactive contrast
+    ========================================================= */
+    /* Inactive pill */
+    [data-testid="stPillsButton"] {
+        background-color: #1F2937 !important;
+        border: 1.5px solid #374151 !important;
+        color: #6B7280 !important;
+        border-radius: 20px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        opacity: 0.75 !important;
+    }
+    [data-testid="stPillsButton"]:hover {
+        border-color: #3B82F6 !important;
+        color: #D1D5DB !important;
+        opacity: 1 !important;
+        box-shadow: 0 0 0 2px rgba(59,130,246,0.15) !important;
+    }
+    /* Active/selected pill */
+    [data-testid="stPillsButton"][aria-pressed="true"],
+    [data-testid="stPillsButton"][aria-checked="true"],
+    [data-testid="stPillsButton"][data-selected="true"] {
+        background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%) !important;
+        border-color: #3B82F6 !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4) !important;
+    }
+
+    /* =========================================================
+       GENERATE BUTTON — premium gradient CTA
+    ========================================================= */
+    /* Target the primary button inside the AI tab specifically */
+    [data-testid="stButton"] button[kind="primary"] {
+        background: linear-gradient(135deg, #1D4ED8 0%, #7C3AED 100%) !important;
+        border: none !important;
+        border-radius: 10px !important;
+        color: white !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        padding: 14px 28px !important;
+        letter-spacing: 0.3px !important;
+        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.35) !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+    }
+    [data-testid="stButton"] button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%) !important;
+        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5) !important;
+        transform: translateY(-2px) !important;
+    }
+    [data-testid="stButton"] button[kind="primary"]:active {
+        transform: translateY(0px) !important;
+        box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3) !important;
+    }
+
+    /* All other (secondary) buttons */
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
 
+    /* =========================================================
+       AI OVERVIEW — briefing container + custom loading state
+    ========================================================= */
     .ai-briefing-container {
         background: #1E1E24;
         border: 1px solid #2E2F38;
@@ -337,6 +426,42 @@ st.markdown('''
         font-family: 'Inter', sans-serif;
         line-height: 1.8;
         margin-top: 1rem;
+    }
+
+    /* Custom animated loading card */
+    .ai-loading-container {
+        background: #1E1E24;
+        border: 1px solid #2E2F38;
+        border-top: 4px solid #3B82F6;
+        border-radius: 12px;
+        padding: 3rem 2rem;
+        text-align: center;
+        margin-top: 1rem;
+    }
+    .ai-loading-label {
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        color: #9CA3AF;
+        margin-top: 1.2rem;
+        letter-spacing: 0.5px;
+    }
+    .ai-loading-dots {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .ai-loading-dots span {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #3B82F6;
+        animation: pulse-dot 1.4s ease-in-out infinite;
+    }
+    .ai-loading-dots span:nth-child(2) { animation-delay: 0.2s; background-color: #6366F1; }
+    .ai-loading-dots span:nth-child(3) { animation-delay: 0.4s; background-color: #8B5CF6; }
+    @keyframes pulse-dot {
+        0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+        40% { transform: scale(1.2); opacity: 1; }
     }
 
     .copy-btn {
@@ -594,15 +719,26 @@ else:
                 current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}"
 
                 if st.session_state.get('ai_summary_signature') != current_feed_signature:
-                    if st.button("Generate Summary", type="primary"):
-                        with st.spinner("Gemini is reading the news..."):
-                            date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
-                            summary_markdown = get_gemini_summary(prompt_data_string, date_context)
+                    if st.button("✨ Generate AI Briefing", type="primary"):
+                        # Custom animated loading state — replaces default st.spinner
+                        loading_placeholder = st.empty()
+                        loading_placeholder.markdown('''
+                        <div class="ai-loading-container">
+                            <div class="ai-loading-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <p class="ai-loading-label">Gemini is reading the news&hellip;</p>
+                        </div>
+                        ''', unsafe_allow_html=True)
 
-                            st.session_state.ai_summary_text = summary_markdown
-                            st.session_state.ai_summary_signature = current_feed_signature
+                        date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
+                        summary_markdown = get_gemini_summary(prompt_data_string, date_context)
 
-                            st.rerun()
+                        loading_placeholder.empty()
+                        st.session_state.ai_summary_text = summary_markdown
+                        st.session_state.ai_summary_signature = current_feed_signature
+
+                        st.rerun()
 
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     encoded_summary = urllib.parse.quote(st.session_state.ai_summary_text)
