@@ -242,12 +242,18 @@ with st.sidebar:
     # 🕒 TIMEZONE FIX FOR CALENDAR WIDGET
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
-    yesterday = today - timedelta(days=1)
+    min_allowed_date = today - timedelta(days=29)
     
+    # 🛡️ SAFETY CLAMP: Prevents cached dates from exceeding the max_value or min_value
+    safe_start = max(min(st.session_state.applied_start_date, today), min_allowed_date)
+    safe_end = max(min(st.session_state.applied_end_date, today), min_allowed_date)
+    if safe_start > safe_end:
+        safe_start = safe_end
+        
     current_date_range = st.date_input(
         "Select Date Range", 
-        value=(st.session_state.applied_start_date, st.session_state.applied_end_date), 
-        min_value=today - timedelta(days=29), 
+        value=(safe_start, safe_end), 
+        min_value=min_allowed_date, 
         max_value=today, 
         format="MM/DD/YYYY"
     )
