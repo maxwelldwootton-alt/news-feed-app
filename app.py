@@ -410,11 +410,6 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
-    /* Specifically kills the gap divider without touching tab button borders */
-[data-baseweb="tab-list"] + div {
-    border-top: none !important;
-    margin-top: -2px !important;
-}
     </style>
 ''', unsafe_allow_html=True)
 
