@@ -459,7 +459,6 @@ has_pending_changes = (
 )
 
 if has_pending_changes:
-    st.info("⚠️ You have pending filter changes.")
     if st.button("🔄 Update Feed", type="primary", use_container_width=True):
         st.session_state.applied_topics = current_selected_topics
         st.session_state.applied_start_date = current_start
