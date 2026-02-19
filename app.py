@@ -104,7 +104,7 @@ def classify_article(text, applied_topics):
     text_lower = text.lower()
     
     for topic in applied_topics:
-        if re.search(rf'\b{re.escape(topic.lower())}', text_lower):
+        if re.search(rf'\b{re.escape(topic.lower())}\b', text_lower):
             found_tags.append(topic)
             
     return list(dict.fromkeys(found_tags))
