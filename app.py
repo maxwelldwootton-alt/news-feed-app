@@ -39,7 +39,6 @@ if 'active_default' not in st.session_state:
 if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
-# Stores the topics that were actually submitted to the API
 if 'applied_topics' not in st.session_state:
     st.session_state.applied_topics = DEFAULT_TOPICS.copy()
 
@@ -138,6 +137,33 @@ st.markdown('''
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
 
+    /* 🌟 NEW: Premium Masthead */
+    .masthead {
+        text-align: center;
+        padding: 2rem 0 1.5rem 0;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid #363636;
+    }
+    .masthead h1 {
+        font-family: 'Merriweather', serif;
+        font-size: 3.5rem;
+        font-weight: 900;
+        color: #F3F4F6;
+        margin: 0;
+        letter-spacing: -1.5px;
+        line-height: 1.2;
+    }
+    .masthead p {
+        font-family: 'Inter', sans-serif;
+        color: #9CA3AF;
+        font-size: 0.95rem;
+        font-weight: 400;
+        margin-top: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+    }
+
+    /* Article Cards */
     .card-container {
         background-color: #262730; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; border: 1px solid #363636;
@@ -167,7 +193,14 @@ st.markdown('''
     .card-container:hover .headline { color: #60A5FA; }
     .metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; color: #A0A0A0; }
     
-    .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
+    /* 🌟 NEW: Tactile Hover Effects for Chips */
+    .chip { 
+        display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; 
+        font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; 
+        text-transform: uppercase; letter-spacing: 0.5px; color: white;
+        transition: all 0.2s ease; 
+    }
+    .chip:hover { transform: translateY(-2px); filter: brightness(1.2); box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
     .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
     
@@ -189,6 +222,20 @@ st.markdown('''
     .chip-overflow:hover .tooltip-text, .chip-overflow:active .tooltip-text { visibility: visible; opacity: 1; }
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
+
+    /* 🌟 NEW: Executive Briefing AI Container */
+    .ai-briefing-container {
+        background: #1E1E24;
+        border: 1px solid #2E2F38;
+        border-top: 4px solid #3B82F6;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        color: #E5E7EB;
+        font-family: 'Inter', sans-serif;
+        line-height: 1.8;
+        margin-top: 1rem;
+    }
     </style>
 ''' , unsafe_allow_html=True)
 
@@ -224,9 +271,13 @@ with st.sidebar:
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
 
-# --- MAIN UI ---
-st.title("📰 The Wire")
-st.caption("No algorithms. No comments. Just headlines.")
+# --- MAIN UI MASTHEAD ---
+st.markdown('''
+<div class="masthead">
+    <h1>📰 The Wire</h1>
+    <p>No algorithms. No comments. Just headlines.</p>
+</div>
+''', unsafe_allow_html=True)
 
 col_search, col_edit = st.columns([4, 1])
 with col_search:
@@ -249,10 +300,9 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# 🛑 NEW: CONDITIONAL REFRESH BUTTON
+# CONDITIONAL REFRESH BUTTON
 current_selected_topics = st.session_state.active_default + st.session_state.active_custom
 
-# Check if ANY of the current UI selections differ from what is currently rendering the feed
 has_pending_changes = (
     set(current_selected_topics) != set(st.session_state.applied_topics) or
     current_start != st.session_state.applied_start_date or
@@ -277,6 +327,9 @@ for topic in st.session_state.applied_topics:
         query_parts.append(part)
 
 api_query = " OR ".join(query_parts) if query_parts else "General"
+
+# 🌟 NEW: The seamless dark fallback image (Base64 SVG to avoid external requests breaking)
+FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAnIGhlaWdodD0nMTIwJz48cmVjdCB3aWR0aD0nMTIwJyBoZWlnaHQ9JzEyMCcgZmlsbD0nIzFGMjkzNycvPjx0ZXh0IHg9JzUwJScgeT0nNTAlJyBmb250LXNpemU9JzQwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBkeT0nLjNlbSc+8J+TsDwvdGV4dD48L3N2Zz4="
 
 # --- MAIN APP BODY ---
 if not NEWS_API_KEY:
@@ -353,7 +406,12 @@ else:
                     display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
                     
                     source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.style.display=\'none\'"></div>' if image_url else ""
+                    
+                    # 🌟 NEW: The foolproof layout stability image block
+                    if image_url:
+                        img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.onerror=null; this.src=\'{FALLBACK_IMG}\';"></div>'
+                    else:
+                        img_html = f'<div class="img-column"><img src="{FALLBACK_IMG}" alt="Placeholder"></div>'
                     
                     st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                     
@@ -379,4 +437,8 @@ else:
                         with st.spinner("Gemini is reading the news..."):
                             date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
                             summary_markdown = get_gemini_summary(prompt_data_string, date_context)
+                            
+                            # 🌟 NEW: Wraps the AI markdown in the executive briefing CSS container
+                            st.markdown('<div class="ai-briefing-container">', unsafe_allow_html=True)
                             st.markdown(summary_markdown)
+                            st.markdown('</div>', unsafe_allow_html=True)
