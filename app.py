@@ -57,7 +57,7 @@ if 'applied_start_date' not in st.session_state:
     today = (current_utc - timedelta(hours=5)).date()
     st.session_state.applied_start_date = today - timedelta(days=1)
     st.session_state.applied_end_date = today 
-    # 🌟 NEW: Pre-selects every single source in your dictionary by default
+    # Pre-selects every single source in your dictionary by default
     st.session_state.applied_sources = list(SOURCE_MAPPING.keys())
 
 # Memory for the AI Summary and its feed signature
@@ -67,7 +67,7 @@ if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
 
 # --- FUNCTIONS ---
-# 🌟 NEW: 12-Hour Cache & Parallel Fetching
+# 12-Hour Cache & Parallel Fetching
 @st.cache_data(ttl=timedelta(hours=12), show_spinner=False)
 def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
     if not topics:
@@ -176,7 +176,7 @@ st.markdown('''
         display: none !important;
     }
 
-    /* 🌟 NEW: Expands the native unselectable UI to the Tabs and AI Overview header */
+    /* Expands the native unselectable UI to the Tabs and AI Overview header */
     .masthead, .masthead h1, .masthead p, 
     [data-testid="stHeader"], 
     [data-testid="stTab"], 
@@ -362,6 +362,19 @@ with col_search:
     st.text_input("Add a custom feed:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Bitcoin, Election...", label_visibility="collapsed")
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom chips")
+
+# 🌟 NEW: Select All / Clear All Topic Controls
+col_sel, col_clr, _ = st.columns([1, 1, 3])
+with col_sel:
+    if st.button("☑️ Select All", use_container_width=True, help="Select all custom and trending topics"):
+        st.session_state.active_default = DEFAULT_TOPICS.copy()
+        st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
+        st.rerun()
+with col_clr:
+    if st.button("☐ Clear All", use_container_width=True, help="Deselect all topics"):
+        st.session_state.active_default = []
+        st.session_state.active_custom = []
+        st.rerun()
 
 if st.session_state.saved_custom_topics:
     st.write("**My Feeds**")
