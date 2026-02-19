@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import re
-from textblob import TextBlob
 from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
 
@@ -46,7 +45,6 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_start_date = today - timedelta(days=3)
     st.session_state.applied_end_date = today - timedelta(days=1)
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
-    st.session_state.applied_emotional = True
 
 # --- FUNCTIONS ---
 @st.cache_data(ttl=86400, show_spinner=False) # 86400 seconds = 24 hours
@@ -77,10 +75,6 @@ def fetch_news(query, sources, from_date, to_date, api_key):
     else:
         error_msg = data.get('message', 'Unknown API Error')
         raise RuntimeError(error_msg)
-
-def analyze_sentiment(text):
-    blob = TextBlob(text)
-    return blob.sentiment.subjectivity, blob.sentiment.polarity
 
 def classify_article(text, active_topics):
     found_tags = []
@@ -170,8 +164,6 @@ st.markdown('''
     
     .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: white; }
     .chip-source { background-color: #374151; color: #E5E7EB; border: 1px solid #4B5563; }
-    .chip-neutral { background-color: #059669; border: 1px solid #10B981; }
-    .chip-emotional { background-color: #DC2626; border: 1px solid #EF4444; }
     .chip-category { background-color: transparent; color: #60A5FA; border: 1px solid #3B82F6; }
     
     .chip-overflow { 
@@ -220,8 +212,6 @@ st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
 # --- MASTER QUERY BUILDER (OPTION 2) ---
-# We query the API for ALL default and saved custom topics at once.
-# This keeps the API query string perfectly static, so Streamlit caches it for 24 hours.
 all_master_topics = list(dict.fromkeys(DEFAULT_TOPICS + st.session_state.saved_custom_topics))
 query_parts = []
 
@@ -232,7 +222,6 @@ for topic in all_master_topics:
 
 master_api_query = " OR ".join(query_parts) if query_parts else "General"
 
-# The user's CURRENTLY selected chips (used entirely for local filtering)
 active_topics = st.session_state.active_default + st.session_state.active_custom
 
 # --- SIDEBAR ---
@@ -266,13 +255,11 @@ with st.sidebar:
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
-    current_emotional = st.checkbox("Hide emotionally charged headlines?", value=st.session_state.applied_emotional)
     
     if st.button("Update Timeframe/Sources", type="primary"):
          st.session_state.applied_start_date = current_start
          st.session_state.applied_end_date = current_end
          st.session_state.applied_sources = current_sources
-         st.session_state.applied_emotional = current_emotional
          st.rerun()
 
 st.divider()
@@ -289,7 +276,6 @@ else:
         with st.spinner("Loading wire..."):
             
             try:
-                # Passes the static MASTER query to hit the cache
                 raw_articles = fetch_news(master_api_query, st.session_state.applied_sources, st.session_state.applied_start_date, st.session_state.applied_end_date, NEWS_API_KEY)
             except Exception as e:
                 st.error(f"🚨 API Error: {e}")
@@ -304,22 +290,14 @@ else:
                 
                 text_to_analyze = f"{title} {description}"
                 
-                # We strictly classify against the ACTIVE topics, not the master query topics
                 article_tags = classify_article(text_to_analyze, active_topics)
                 
-                # 🛑 LOCAL FILTER: If the article doesn't match a currently checked chip, hide it immediately.
                 if not article_tags:
                     continue
                 
                 article_tags.sort(key=lambda x: priority_list.index(x) if x in priority_list else 999)
                 
-                subjectivity, polarity = analyze_sentiment(text_to_analyze)
-                is_emotional = subjectivity > 0.5
-                if current_emotional and is_emotional: 
-                    continue 
-                
                 article['computed_tags'] = article_tags
-                article['is_emotional'] = is_emotional
                 processed_articles.append(article)
 
             tab_feed, tab_ai = st.tabs(["📰 Feed", "✨ AI Overview"])
@@ -328,10 +306,9 @@ else:
             with tab_feed:
                 if not processed_articles:
                     if raw_articles:
-                        st.info("Articles were found by the master query, but they were filtered out by your current chips or settings.")
+                        st.info("Articles were found by the master query, but they were filtered out by your current chips.")
                     else:
-                        if not raw_articles:
-                            st.info("No articles found matching these topics on the selected dates.")
+                        st.info("No articles found matching these topics on the selected dates.")
                     
                 for article in processed_articles:
                     title = article.get('title') or ""
@@ -360,10 +337,9 @@ else:
                     display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
                     
                     source_chip = f'<span class="chip chip-source">{display_source}</span>'
-                    sentiment_chip = '<span class="chip chip-emotional">⚠️ High Emotion</span>' if article['is_emotional'] else '<span class="chip chip-neutral">✅ Objective</span>'
                     img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail"></div>' if image_url else ""
                     
-                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span>{sentiment_chip}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
+                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
                     
             # --- TAB 2: AI OVERVIEW ---
             with tab_ai:
