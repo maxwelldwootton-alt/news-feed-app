@@ -57,7 +57,8 @@ if 'applied_start_date' not in st.session_state:
     today = (current_utc - timedelta(hours=5)).date()
     st.session_state.applied_start_date = today - timedelta(days=1)
     st.session_state.applied_end_date = today 
-    st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
+    # 🌟 NEW: Pre-selects every single source in your dictionary by default
+    st.session_state.applied_sources = list(SOURCE_MAPPING.keys())
 
 # Memory for the AI Summary and its feed signature
 if 'ai_summary_text' not in st.session_state:
@@ -66,7 +67,7 @@ if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
 
 # --- FUNCTIONS ---
-# 🌟 12-Hour Cache & Parallel Fetching
+# 🌟 NEW: 6-Hour Cache & Parallel Fetching
 @st.cache_data(ttl=timedelta(hours=6), show_spinner=False)
 def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
     if not topics:
@@ -175,8 +176,11 @@ st.markdown('''
         display: none !important;
     }
 
-    /* 🌟 NEW: Make UI headers unselectable with default cursor for a native app feel */
-    .masthead, .masthead h1, .masthead p, [data-testid="stHeader"] {
+    /* 🌟 NEW: Expands the native unselectable UI to the Tabs and AI Overview header */
+    .masthead, .masthead h1, .masthead p, 
+    [data-testid="stHeader"], 
+    [data-testid="stTab"], 
+    div[data-testid="stMarkdownContainer"] > h2 {
         user-select: none !important;
         -webkit-user-select: none !important;
         cursor: default !important;
@@ -484,7 +488,7 @@ else:
                 
         # --- TAB 2: AI OVERVIEW ---
         with tab_ai:
-            st.header("✨ AI Overview", anchor=False) # 🌟 NEW: Prevents Streamlit from generating an anchor link
+            st.header("✨ AI Overview", anchor=False)
             
             if not processed_articles:
                 st.info("No articles available to summarize.")
