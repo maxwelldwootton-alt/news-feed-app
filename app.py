@@ -441,14 +441,15 @@ if st.session_state.saved_custom_topics:
     else:
         st.pills("My Feeds", options=st.session_state.saved_custom_topics, key="active_custom", selection_mode="multi", label_visibility="collapsed")
 
-# 🌟 NEW INLINE BUTTON LAYOUT
-col_title, col_sel, col_clr, _ = st.columns([3, 1.5, 1.5, 3], vertical_alignment="center")
+# 🌟 CLEANED UP: Compact, Right-Aligned Utility Buttons!
+# Uses vertical_alignment="bottom" so they sit perfectly flush with the "Trending Topics" text.
+col_title, col_sel, col_clr = st.columns([6, 2, 2], vertical_alignment="bottom")
 with col_title:
-    st.markdown("**Trending Topics**")
+    st.write("**Trending Topics**")
 with col_sel:
-    st.button("☑️ Select All", on_click=select_all_topics, use_container_width=True, help="Select all custom and trending topics")
+    st.button("Select All", on_click=select_all_topics, use_container_width=True)
 with col_clr:
-    st.button("☐ Clear All", on_click=clear_all_topics, use_container_width=True, help="Deselect all topics")
+    st.button("Clear All", on_click=clear_all_topics, use_container_width=True)
 
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
