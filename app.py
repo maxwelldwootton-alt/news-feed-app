@@ -8,7 +8,11 @@ import concurrent.futures # 🌟 Required for parallel API calls
 import urllib.parse # 🌟 Required to safely encode the AI summary text for the clipboard
 
 # --- CONFIGURATION ---
-NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
+NEWS_API_KEY = [
+    st.secrets["NEWS_API_KEY_1"],
+    st.secrets["NEWS_API_KEY_2"],
+    st.secrets["NEWS_API_KEY_3"],
+]
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # Initialize Gemini
@@ -94,7 +98,7 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_start_date = today - timedelta(days=1)
     st.session_state.applied_end_date = today 
     # Pre-selects every source except Wired and Hacker News by default
-    st.session_state.applied_sources = [src for src in SOURCE_MAPPING.keys() if src not in ('wired', 'hacker-news')]
+    st.session_state.applied_sources = [src for src in SOURCE_MAPPING.keys() if src not in ('wired', 'hacker-news','ars-technica')]
 
 # Memory for the AI Summary and its feed signature
 if 'ai_summary_text' not in st.session_state:
@@ -124,28 +128,28 @@ def fetch_news_parallel(topics, sources, from_date, to_date, api_key):
         
     all_articles = []
     
-    def fetch_single_topic(topic):
-        url = "https://newsapi.org/v2/everything"
-        params = {
-            'q': build_api_query(topic),
-            'searchIn': 'title,description', 
-            'sources': ','.join(sources) if sources else '',
-            'from': from_date.strftime('%Y-%m-%d'),
-            'to': to_date.strftime('%Y-%m-%d'),
-            'language': 'en',
-            'sortBy': 'publishedAt',
-            'pageSize': 100,
-            'apiKey': api_key
-        }
+def fetch_single_topic(topic):
+    url = "https://newsapi.org/v2/everything"
+    params = {
+        'q': build_api_query(topic),
+        'searchIn': 'title,description',
+        'sources': ','.join(sources) if sources else '',
+        'from': from_date.strftime('%Y-%m-%d'),
+        'to': to_date.strftime('%Y-%m-%d'),
+        'language': 'en',
+        'sortBy': 'publishedAt',
+        'pageSize': 100,
+    }
+    for api_key in NEWS_API_KEYS:
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params={**params, 'apiKey': api_key})
             data = response.json()
             if data.get('status') == 'ok':
                 return data.get('articles', [])
-            else:
-                return []
+            # If status is not ok (e.g. rate limited), try next key
         except:
-            return []
+            pass  # Network error, try next key
+    return []  # All keys exhausted
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         results = executor.map(fetch_single_topic, topics)
