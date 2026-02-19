@@ -199,6 +199,15 @@ def add_custom_topic():
 
     st.session_state.search_input = ""
 
+# 🌟 NEW: Callbacks for the Select All and Clear All buttons
+def select_all_topics():
+    st.session_state.active_default = DEFAULT_TOPICS.copy()
+    st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
+
+def clear_all_topics():
+    st.session_state.active_default = []
+    st.session_state.active_custom = []
+
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
@@ -435,18 +444,12 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# 🌟 MOVED: Select All / Clear All Topic Controls below Trending Topics
+# 🌟 FIXED: Buttons now execute the callback logic before the UI rebuilds
 col_sel, col_clr, _ = st.columns([1, 1, 3])
 with col_sel:
-    if st.button("☑️ Select All", use_container_width=True, help="Select all custom and trending topics"):
-        st.session_state.active_default = DEFAULT_TOPICS.copy()
-        st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
-        st.rerun()
+    st.button("☑️ Select All", on_click=select_all_topics, use_container_width=True, help="Select all custom and trending topics")
 with col_clr:
-    if st.button("☐ Clear All", use_container_width=True, help="Deselect all topics"):
-        st.session_state.active_default = []
-        st.session_state.active_custom = []
-        st.rerun()
+    st.button("☐ Clear All", on_click=clear_all_topics, use_container_width=True, help="Deselect all topics")
 
 # CONDITIONAL REFRESH BUTTON
 current_selected_topics = st.session_state.active_default + st.session_state.active_custom
