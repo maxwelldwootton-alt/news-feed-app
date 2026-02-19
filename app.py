@@ -275,7 +275,7 @@ st.markdown('''
     }
     .masthead h1 {
         font-family: 'Merriweather', serif;
-        font-size: 6rem;
+        font-size: 3.5rem;
         font-weight: 900;
         color: #F3F4F6;
         margin: 0;
