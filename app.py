@@ -239,7 +239,7 @@ st.markdown('''
     div[data-baseweb="tab-list"] {
         gap: 8px !important;
         border-bottom: 2px solid #363636 !important;
-        margin-bottom: 24px !important;
+        margin-bottom: 8px !important;
         padding-bottom: 0 !important;
     }
     button[data-baseweb="tab"] {
