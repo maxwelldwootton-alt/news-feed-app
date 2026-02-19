@@ -199,13 +199,6 @@ def add_custom_topic():
 
     st.session_state.search_input = ""
 
-# Unified Callbacks for Select/Clear All
-def select_all_topics():
-    st.session_state.active_topics = DEFAULT_TOPICS + st.session_state.saved_custom_topics
-
-def clear_all_topics():
-    st.session_state.active_topics = []
-
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
@@ -235,7 +228,7 @@ st.markdown('''
         cursor: default !important;
     }
 
-    /* 🌟 PREMIUM DOMINANT TABS */
+    /* PREMIUM DOMINANT TABS */
     div[data-baseweb="tab-list"] {
         gap: 8px !important;
         border-bottom: 2px solid #363636 !important;
@@ -244,28 +237,31 @@ st.markdown('''
     }
     button[data-baseweb="tab"] {
         font-family: 'Inter', sans-serif !important;
-        font-size: 1.15rem !important; /* Larger text */
+        font-size: 1.15rem !important;
         font-weight: 600 !important;
         color: #9CA3AF !important;
-        padding: 12px 24px !important; /* Bigger click target */
-        border-radius: 8px 8px 0 0 !important; /* Rounded top corners */
+        padding: 12px 24px !important;
+        border-radius: 8px 8px 0 0 !important;
         border: none !important;
         border-bottom: 3px solid transparent !important;
         background-color: transparent !important;
         transition: all 0.2s ease !important;
     }
-    /* Hover state for unselected tabs */
     button[data-baseweb="tab"]:hover {
         color: #F3F4F6 !important;
-        background-color: #2E2F38 !important; /* Subtle dark gray hover */
+        background-color: #2E2F38 !important;
     }
-    /* Active/Selected tab state */
     button[data-baseweb="tab"][aria-selected="true"] {
-        color: #60A5FA !important; /* Premium Blue */
-        border-bottom: 3px solid #60A5FA !important; /* Thick glowing border */
-        background-color: rgba(59, 130, 246, 0.1) !important; /* Subtle blue background tint */
+        color: #60A5FA !important;
+        border-bottom: 3px solid #60A5FA !important;
+        background-color: rgba(59, 130, 246, 0.1) !important;
     }
-    
+    div[data-baseweb="tab-border"] {
+        display: none !important;
+    }
+    div[data-baseweb="tab-panel"] {
+        padding-top: 0 !important;
+    }
 
     .masthead {
         text-align: center;
@@ -410,19 +406,6 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
-    div[data-baseweb="tab-border"] {
-    display: none !important;
-}
-div[data-baseweb="tab-panel"] {
-    padding-top: 0 !important;
-}
-/* Smaller Select/Clear All buttons */
-div[data-testid="stColumns"] .stButton button {
-    font-size: 5px !important;
-    padding: 4px 8px !important;
-    min-height: 0 !important;
-    height: auto !important;
-}
     </style>
 ''', unsafe_allow_html=True)
 
@@ -478,7 +461,6 @@ if is_edit_mode and st.session_state.saved_custom_topics:
     def on_delete_change():
         remaining = st.session_state.temp_delete_widget
         st.session_state.saved_custom_topics = remaining
-        # Ensure any deleted custom topic is also removed from active_topics
         st.session_state.active_topics = [t for t in st.session_state.active_topics if t in DEFAULT_TOPICS or t in remaining]
     st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
 
@@ -487,13 +469,6 @@ st.write("**Selected Topics**")
 
 all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
 st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
-
-# TUCKED BUTTONS: Small columns right below the chips
-col_sel, col_clr, _ = st.columns([1,1,7])
-with col_sel:
-    st.button("Select All", on_click=select_all_topics, use_container_width=True)
-with col_clr:
-    st.button("Clear All", on_click=clear_all_topics, use_container_width=True)
 
 # CONDITIONAL REFRESH BUTTON
 current_selected_topics = st.session_state.active_topics
@@ -506,7 +481,7 @@ has_pending_changes = (
 )
 
 if has_pending_changes:
-    st.write("") # Just a little breathing room before the huge blue button
+    st.write("")
     if st.button("🔄 Update Feed", type="primary", use_container_width=True):
         st.session_state.applied_topics = current_selected_topics
         st.session_state.applied_start_date = current_start
