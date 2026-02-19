@@ -496,7 +496,7 @@ else:
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
 
-# 🌟 BULLETPROOF ANCHOR LINK: Uses native HTML/CSS smooth scrolling
+# 🌟 THE BUTTON: Draws the physical button on the screen
 st.markdown(
     '''
     <a href="#top-of-page" class="back-to-top" title="Return to top">
@@ -507,25 +507,44 @@ st.markdown(
     ''',
     unsafe_allow_html=True
 )
-# JavaScript Animation Hook to artificially slow down the scroll
+
+# 🌟 THE SCRIPT: Waits for the button to exist, then attaches the slow-scroll
 components.html(
     """
     <script>
-    try {
-        const parentDoc = window.parent.document;
+    const parentDoc = window.parent.document;
+    
+    // 1. Wait for Streamlit to finish drawing the button
+    const findButton = setInterval(() => {
         const btn = parentDoc.querySelector('.back-to-top');
-        // Targets Streamlit's main scrolling container
-        const scrollContainer = parentDoc.querySelector('.main') || parentDoc.querySelector('[data-testid="stAppViewContainer"]');
         
-        if (btn && scrollContainer) {
+        if (btn) {
+            clearInterval(findButton); // Stop searching once found
+            
+            // 2. Attach the slow-scroll animation
             btn.addEventListener('click', function(e) {
-                e.preventDefault(); // Intercepts and stops the rapid native browser jump
+                e.preventDefault(); // Stop the rapid HTML jump
                 
-                const startY = scrollContainer.scrollTop;
-                const duration = 1500; // 🕒 Set to 1500ms (1.5 seconds) for a slow glide
+                // Find Streamlit's scrolling container
+                const scrollContainer = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main');
+                const scrollWindow = window.parent;
+                
+                let targetElement = null;
+                let startY = 0;
+                
+                if (scrollContainer && scrollContainer.scrollTop > 0) {
+                    targetElement = scrollContainer;
+                    startY = scrollContainer.scrollTop;
+                } else if (scrollWindow.scrollY > 0) {
+                    targetElement = scrollWindow;
+                    startY = scrollWindow.scrollY;
+                } else {
+                    return; // Already at the top
+                }
+
+                const duration = 1500; // 🕒 1.5 seconds (Change this number to adjust speed)
                 const startTime = performance.now();
                 
-                // Mathematical curve for "ease-in-out" so it starts slow, accelerates, and stops slow
                 function easeInOutCubic(t, b, c, d) {
                     t /= d/2;
                     if (t < 1) return c/2*t*t*t + b;
@@ -537,21 +556,25 @@ components.html(
                     const timeElapsed = currentTime - startTime;
                     const run = easeInOutCubic(timeElapsed, startY, -startY, duration);
                     
-                    scrollContainer.scrollTop = run;
+                    if (targetElement === scrollWindow) {
+                        targetElement.scrollTo(0, run);
+                    } else {
+                        targetElement.scrollTop = run;
+                    }
                     
                     if (timeElapsed < duration) {
                         window.requestAnimationFrame(animateScroll);
                     } else {
-                        scrollContainer.scrollTop = 0;
+                        // Snap exactly to 0 at the very end to prevent getting stuck
+                        if (targetElement === scrollWindow) targetElement.scrollTo(0, 0);
+                        else targetElement.scrollTop = 0;
                     }
                 }
                 
                 window.requestAnimationFrame(animateScroll);
             });
         }
-    } catch(err) {
-        console.log("Animation script blocked by environment, falling back to native CSS smooth scroll.");
-    }
+    }, 250); // Check every 250 milliseconds
     </script>
     """,
     height=0,
