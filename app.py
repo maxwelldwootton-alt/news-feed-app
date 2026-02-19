@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components # 🛑 NEW: Re-added to inject the custom scroll animation
 import requests
 import re
 from datetime import datetime, timedelta, date, timezone
@@ -143,7 +142,7 @@ def add_custom_topic():
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
-# The invisible target at the very top of the page
+# 🌟 NEW: The invisible target at the very top of the page for smooth scrolling
 st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
 
 # --- CSS STYLING ---
@@ -152,7 +151,7 @@ st.markdown('''
     @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    html { scroll-behavior: smooth; } /* Fallback native scroll */
+    html { scroll-behavior: smooth; } /* Enables smooth scrolling natively */
     
     * { word-wrap: break-word; overflow-wrap: break-word; }
     .block-container { overflow-x: hidden; }
@@ -257,7 +256,7 @@ st.markdown('''
         margin-top: 1rem;
     }
 
-    /* CSS-only Floating Button */
+    /* 🌟 NEW: CSS-only Floating Button */
     .back-to-top {
         position: fixed;
         bottom: 30px;
@@ -497,53 +496,14 @@ else:
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
 
-# 🌟 NEW: JavaScript Animation Hook to artificially slow down the scroll
-components.html(
-    """
-    <script>
-    try {
-        const parentDoc = window.parent.document;
-        const btn = parentDoc.querySelector('.back-to-top');
-        // Targets Streamlit's main scrolling container
-        const scrollContainer = parentDoc.querySelector('.main') || parentDoc.querySelector('[data-testid="stAppViewContainer"]');
-        
-        if (btn && scrollContainer) {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault(); // Intercepts and stops the rapid native browser jump
-                
-                const startY = scrollContainer.scrollTop;
-                const duration = 1500; // 🕒 Set to 1500ms (1.5 seconds) for a slow glide
-                const startTime = performance.now();
-                
-                // Mathematical curve for "ease-in-out" so it starts slow, accelerates, and stops slow
-                function easeInOutCubic(t, b, c, d) {
-                    t /= d/2;
-                    if (t < 1) return c/2*t*t*t + b;
-                    t -= 2;
-                    return c/2*(t*t*t + 2) + b;
-                }
-                
-                function animateScroll(currentTime) {
-                    const timeElapsed = currentTime - startTime;
-                    const run = easeInOutCubic(timeElapsed, startY, -startY, duration);
-                    
-                    scrollContainer.scrollTop = run;
-                    
-                    if (timeElapsed < duration) {
-                        window.requestAnimationFrame(animateScroll);
-                    } else {
-                        scrollContainer.scrollTop = 0;
-                    }
-                }
-                
-                window.requestAnimationFrame(animateScroll);
-            });
-        }
-    } catch(err) {
-        console.log("Animation script blocked by environment, falling back to native CSS smooth scroll.");
-    }
-    </script>
-    """,
-    height=0,
-    width=0
+# 🌟 BULLETPROOF ANCHOR LINK: Uses native HTML/CSS smooth scrolling
+st.markdown(
+    '''
+    <a href="#top-of-page" class="back-to-top" title="Return to top">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+            <path d="M214.6 41.4c-12.5-12.5-32.8-12.5-45.3 0l-160 160c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 141.2V448c0 17.7 14.3 32 32 32s32-14.3 32-32V141.2L329.4 246.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-160-160z"/>
+        </svg>
+    </a>
+    ''',
+    unsafe_allow_html=True
 )
