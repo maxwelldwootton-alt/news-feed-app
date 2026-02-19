@@ -238,7 +238,7 @@ st.markdown('''
     /* 🌟 PREMIUM DOMINANT TABS */
     div[data-baseweb="tab-list"] {
         gap: 8px !important;
-        border-bottom: 10px solid #363636 !important;
+        border-bottom: 2px solid #363636 !important;
         margin-bottom: 24px !important;
         padding-bottom: 0 !important;
     }
@@ -271,7 +271,7 @@ st.markdown('''
         text-align: center;
         padding: 2rem 0 1.5rem 0;
         margin-bottom: 2rem;
-        border-bottom: 1px solid #363636;
+        border-bottom: 10px solid #363636;
     }
     .masthead h1 {
         font-family: 'Merriweather', serif;
