@@ -1,10 +1,3 @@
-That is a much better spot for them UX-wise. Grouping the bulk-action buttons right beneath the things you are actually selecting makes the visual flow a lot more intuitive.
-
-I've taken the entire `col_sel, col_clr, _ = st.columns([1, 1, 3])` block and moved it directly below the `st.pills("Trending Topics"...)` line.
-
-Here is your fully updated code with the buttons in their new home. Copy and paste this directly over your `app.py`:
-
-```python
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
@@ -695,5 +688,3 @@ components.html(
     height=0,
     width=0
 )
-
-```
