@@ -199,7 +199,6 @@ def add_custom_topic():
 
     st.session_state.search_input = ""
 
-# 🌟 NEW: Callbacks for the Select All and Clear All buttons
 def select_all_topics():
     st.session_state.active_default = DEFAULT_TOPICS.copy()
     st.session_state.active_custom = st.session_state.saved_custom_topics.copy()
@@ -235,6 +234,24 @@ st.markdown('''
         user-select: none !important;
         -webkit-user-select: none !important;
         cursor: default !important;
+    }
+
+    /* 🌟 BULLETPROOF PILL VISUALS */
+    /* Target ALL pills (acts as the unselected state) */
+    button[data-testid="stBaseButton-pill"] {
+        background-color: transparent !important;
+        color: #9CA3AF !important; 
+        border: 1px dashed #4B5563 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    /* Target ONLY pills that are actively pressed using native accessibility tags */
+    button[data-testid="stBaseButton-pill"][aria-pressed="true"] {
+        background-color: #3B82F6 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #60A5FA !important;
+        font-weight: 600 !important;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.4) !important;
     }
 
     .masthead {
@@ -444,7 +461,6 @@ if st.session_state.saved_custom_topics:
 st.write("**Trending Topics**")
 st.pills("Trending Topics", options=DEFAULT_TOPICS, key="active_default", selection_mode="multi", label_visibility="collapsed")
 
-# 🌟 FIXED: Buttons now execute the callback logic before the UI rebuilds
 col_sel, col_clr, _ = st.columns([1, 1, 3])
 with col_sel:
     st.button("☑️ Select All", on_click=select_all_topics, use_container_width=True, help="Select all custom and trending topics")
