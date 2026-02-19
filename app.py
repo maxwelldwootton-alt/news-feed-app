@@ -497,7 +497,7 @@ if has_pending_changes:
 FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAnIGhlaWdodD0nMTIwJz48cmVjdCB3aWR0aD0nMTIwJyBoZWlnaHQ9JzEyMCcgZmlsbD0nIzFGMjkzNycvPjx0ZXh0IHg9JzUwJScgeT0nNTAlJyBmb250LXNpemU9JzQwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBkeT0nLjNlbSc+8J+TsDwvdGV4dD48L3N2Zz4="
 
 # --- MAIN APP BODY ---
-if not NEWS_API_KEY:
+if not NEWS_API_KEYS:
     st.warning("⚠️ Please enter a valid NewsAPI key.")
 elif not st.session_state.applied_topics:
     st.info("👈 Please select at least one feed category above and click 'Update Feed' to view articles.")
