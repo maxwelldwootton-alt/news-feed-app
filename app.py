@@ -1,5 +1,5 @@
 import streamlit as st
-import streamlit.components.v1 as components # 🛑 NEW: Required to inject the scroll listener script
+import streamlit.components.v1 as components 
 import requests
 import re
 from datetime import datetime, timedelta, date, timezone
@@ -40,7 +40,6 @@ if 'active_default' not in st.session_state:
 if 'active_custom' not in st.session_state:
     st.session_state.active_custom = []
 
-# Stores the topics that were actually submitted to the API
 if 'applied_topics' not in st.session_state:
     st.session_state.applied_topics = DEFAULT_TOPICS.copy()
 
@@ -51,7 +50,6 @@ if 'applied_start_date' not in st.session_state:
     st.session_state.applied_end_date = today 
     st.session_state.applied_sources = NEUTRAL_SOURCES + ['the-verge', 'bbc-news', 'al-jazeera-english']
 
-# Memory for the AI Summary and its feed signature
 if 'ai_summary_text' not in st.session_state:
     st.session_state.ai_summary_text = None
 if 'ai_summary_signature' not in st.session_state:
@@ -122,14 +120,11 @@ def add_custom_topic():
     raw_query = st.session_state.search_input.strip()
     if raw_query:
         new_topic = raw_query.title()
-        
         if new_topic not in st.session_state.saved_custom_topics:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
-            
         current_active = st.session_state.get('active_custom', [])
         if new_topic not in current_active:
             st.session_state.active_custom = current_active + [new_topic]
-            
     st.session_state.search_input = ""
 
 # --- APP CONFIGURATION ---
@@ -244,58 +239,8 @@ st.markdown('''
         line-height: 1.8;
         margin-top: 1rem;
     }
-
-    /* 🌟 NEW: Scroll-to-Top Floating Button Styles */
-    #scroll-to-top-btn {
-        position: fixed;
-        bottom: 30px;
-        right: 30px;
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        background-color: #3B82F6;
-        color: white;
-        border: none;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        cursor: pointer;
-        z-index: 99999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-        opacity: 0;
-        pointer-events: none; /* Prevents invisible clicks */
-        transform: translateY(20px); /* Starts slightly lowered */
-    }
-    #scroll-to-top-btn.visible {
-        opacity: 1;
-        pointer-events: auto;
-        transform: translateY(0); /* Slides up into place */
-    }
-    #scroll-to-top-btn:hover {
-        background-color: #2563EB;
-        transform: translateY(-3px) scale(1.05); /* Lifts up and grows slightly on hover */
-        box-shadow: 0 6px 16px rgba(0,0,0,0.5);
-    }
-    #scroll-to-top-btn svg {
-        width: 20px;
-        height: 20px;
-        fill: currentColor;
-    }
     </style>
 ''' , unsafe_allow_html=True)
-
-# 🌟 NEW: Injecting the actual button HTML into the app
-st.markdown("""
-<button id="scroll-to-top-btn" title="Return to top" onclick="
-    const scrollContainer = window.parent.document.querySelector('[data-testid=&quot;stAppViewContainer&quot;]') || window.parent.document.querySelector('.main') || window.parent.window;
-    scrollContainer.scrollTo({top: 0, behavior: 'smooth'});
-">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
-        <path d="M214.6 41.4c-12.5-12.5-32.8-12.5-45.3 0l-160 160c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 141.2V448c0 17.7 14.3 32 32 32s32-14.3 32-32V141.2L329.4 246.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-160-160z"/>
-    </svg>
-</button>
-""", unsafe_allow_html=True)
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -386,7 +331,6 @@ for topic in st.session_state.applied_topics:
 
 api_query = " OR ".join(query_parts) if query_parts else "General"
 
-# The seamless dark fallback image (Base64 SVG to avoid external requests breaking)
 FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAnIGhlaWdodD0nMTIwJz48cmVjdCB3aWR0aD0nMTIwJyBoZWlnaHQ9JzEyMCcgZmlsbD0nIzFGMjkzNycvPjx0ZXh0IHg9JzUwJScgeT0nNTAlJyBmb250LXNpemU9JzQwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBkeT0nLjNlbSc+8J+TsDwvdGV4dD48L3N2Zz4="
 
 # --- MAIN APP BODY ---
@@ -410,7 +354,6 @@ else:
         for article in raw_articles:
             title = article.get('title') or ""
             
-            # Deduplicate exact titles
             if title in seen_titles:
                 continue
             seen_titles.add(title)
@@ -423,7 +366,6 @@ else:
             if not article_tags:
                 continue
             
-            # Sort tags so the ones you care about appear first
             article_tags.sort(key=lambda x: st.session_state.applied_topics.index(x) if x in st.session_state.applied_topics else 999)
             
             article['computed_tags'] = article_tags
@@ -494,54 +436,108 @@ else:
                 
                 prompt_data_string = "\n".join(prompt_lines)
                 
-                # Create a unique "signature" for this exact feed state
                 current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}"
                 
-                # Check if we already have a valid summary for this exact feed combination
                 if st.session_state.get('ai_summary_signature') != current_feed_signature:
-                    
                     if st.button("Generate Summary", type="primary"):
                         with st.spinner("Gemini is reading the news..."):
                             date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
                             summary_markdown = get_gemini_summary(prompt_data_string, date_context)
                             
-                            # Save the text and the signature to memory
                             st.session_state.ai_summary_text = summary_markdown
                             st.session_state.ai_summary_signature = current_feed_signature
                             
-                            # Instantly reload the page to hide the button
                             st.rerun()
                             
-                # If the signature matches, display the saved summary WITHOUT the button
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     st.markdown(f'<div class="ai-briefing-container">\n\n{st.session_state.ai_summary_text}\n\n</div>', unsafe_allow_html=True)
 
 
-# 🌟 NEW: Javascript to handle the dynamic scroll detection
+# 🌟 BULLETPROOF JAVASCRIPT: Injects a floating action button directly into the main browser DOM
 components.html(
     """
     <script>
     const parentDoc = window.parent.document;
-    const scrollContainer = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main') || parentDoc.window;
+    const parentWin = window.parent;
     
-    if (!scrollContainer.hasAttribute('data-scroll-listener')) {
-        scrollContainer.setAttribute('data-scroll-listener', 'true');
+    // Only add the button if it doesn't already exist
+    if (!parentDoc.getElementById('custom-scroll-btn')) {
+        const btn = parentDoc.createElement('button');
+        btn.id = 'custom-scroll-btn';
+        btn.title = 'Return to top';
         
-        scrollContainer.addEventListener('scroll', function() {
-            const btn = parentDoc.getElementById("scroll-to-top-btn");
-            if (btn) {
-                const scrollTop = scrollContainer.scrollTop || parentDoc.documentElement.scrollTop;
-                // Show button when scrolled down 400px
-                if (scrollTop > 400) {
-                    btn.classList.add('visible');
-                } else {
-                    btn.classList.remove('visible');
-                }
-            }
+        // Add the UP arrow SVG
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" style="width:20px; height:20px; fill:currentColor;"><path d="M214.6 41.4c-12.5-12.5-32.8-12.5-45.3 0l-160 160c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 141.2V448c0 17.7 14.3 32 32 32s32-14.3 32-32V141.2L329.4 246.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-160-160z"/></svg>';
+        
+        // Apply inline CSS to bypass Streamlit's class sanitization
+        Object.assign(btn.style, {
+            position: 'fixed',
+            bottom: '30px',
+            right: '30px',
+            width: '50px',
+            height: '50px',
+            borderRadius: '50%',
+            backgroundColor: '#3B82F6',
+            color: 'white',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            cursor: 'pointer',
+            zIndex: '999999',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: '0',
+            pointerEvents: 'none',
+            transform: 'translateY(20px)',
+            transition: 'all 0.3s ease'
         });
+
+        // Add to the main browser window
+        parentDoc.body.appendChild(btn);
+
+        // Add visual hover effects
+        btn.onmouseover = () => {
+            btn.style.backgroundColor = '#2563EB';
+            btn.style.transform = 'translateY(-3px) scale(1.05)';
+        };
+        btn.onmouseout = () => {
+            btn.style.backgroundColor = '#3B82F6';
+            if (btn.style.opacity === '1') {
+                btn.style.transform = 'translateY(0) scale(1)';
+            }
+        };
+
+        // Smooth scroll action
+        btn.onclick = () => {
+            const container = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main') || parentWin;
+            if (container && container.scrollTo) {
+                container.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            parentWin.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        // Scroll listener to toggle visibility
+        function checkScroll() {
+            const container = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('.main') || parentWin;
+            const scrollTop = container.scrollTop || parentWin.scrollY || parentDoc.documentElement.scrollTop;
+            
+            if (scrollTop > 400) {
+                btn.style.opacity = '1';
+                btn.style.pointerEvents = 'auto';
+                btn.style.transform = 'translateY(0) scale(1)';
+            } else {
+                btn.style.opacity = '0';
+                btn.style.pointerEvents = 'none';
+                btn.style.transform = 'translateY(20px) scale(1)';
+            }
+        }
+        
+        // Listen to everything just in case depending on the Streamlit version
+        parentDoc.addEventListener('scroll', checkScroll, true); 
+        parentWin.addEventListener('scroll', checkScroll);
     }
     </script>
     """,
     height=0,
-    width=0,
+    width=0
 )
