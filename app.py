@@ -2,7 +2,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 import re
-import markdown
 from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
 import concurrent.futures
@@ -210,6 +209,63 @@ def add_custom_topic():
             st.session_state.active_topics = current_active + [new_topic]
 
     st.session_state.search_input = ""
+
+def md_to_html(text):
+    """Simple markdown to HTML converter for AI summary output."""
+    lines = text.split('\n')
+    html_lines = []
+    in_list = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Close list if we're leaving a list context
+        if in_list and not stripped.startswith(('- ', '* ', '• ')):
+            html_lines.append('</ul>')
+            in_list = False
+
+        if not stripped:
+            html_lines.append('')
+            continue
+
+        # Headers
+        if stripped.startswith('#### '):
+            html_lines.append(f'<h4>{stripped[5:].strip()}</h4>')
+        elif stripped.startswith('### '):
+            html_lines.append(f'<h3>{stripped[4:].strip()}</h3>')
+        elif stripped.startswith('## '):
+            html_lines.append(f'<h2>{stripped[3:].strip()}</h2>')
+        elif stripped.startswith('# '):
+            html_lines.append(f'<h1>{stripped[2:].strip()}</h1>')
+        # Horizontal rule
+        elif stripped in ('---', '***', '___'):
+            html_lines.append('<hr>')
+        # List items
+        elif stripped.startswith(('- ', '* ', '• ')):
+            if not in_list:
+                html_lines.append('<ul>')
+                in_list = True
+            content = stripped[2:].strip()
+            # Handle bold
+            content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
+            content = re.sub(r'__(.+?)__', r'<strong>\1</strong>', content)
+            # Handle italic
+            content = re.sub(r'\*(.+?)\*', r'<em>\1</em>', content)
+            content = re.sub(r'_(.+?)_', r'<em>\1</em>', content)
+            html_lines.append(f'<li>{content}</li>')
+        # Regular paragraph
+        else:
+            content = stripped
+            content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
+            content = re.sub(r'__(.+?)__', r'<strong>\1</strong>', content)
+            content = re.sub(r'\*(.+?)\*', r'<em>\1</em>', content)
+            content = re.sub(r'_(.+?)_', r'<em>\1</em>', content)
+            html_lines.append(f'<p>{content}</p>')
+
+    if in_list:
+        html_lines.append('</ul>')
+
+    return '\n'.join(html_lines)
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
@@ -788,7 +844,7 @@ else:
                 # Summary already cached for this feed + mode
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     encoded_summary = urllib.parse.quote(st.session_state.ai_summary_text)
-                    summary_html = markdown.markdown(st.session_state.ai_summary_text, extensions=['extra'])
+                    summary_html = md_to_html(st.session_state.ai_summary_text)
                     st.markdown(f'''
                     <div class="ai-briefing-container">
                         {summary_html}
