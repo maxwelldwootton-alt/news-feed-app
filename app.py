@@ -97,6 +97,8 @@ if 'ai_summary_text' not in st.session_state:
     st.session_state.ai_summary_text = None
 if 'ai_summary_signature' not in st.session_state:
     st.session_state.ai_summary_signature = None
+if 'summary_mode' not in st.session_state:
+    st.session_state.summary_mode = "brief"
 
 # --- FUNCTIONS ---
 
@@ -162,16 +164,28 @@ def classify_article(text, applied_topics):
 
 
 @st.cache_data(show_spinner=False)
-def get_gemini_summary(prompt_data_string, date_context):
+def get_gemini_summary(prompt_data_string, date_context, summary_mode="brief"):
     if not prompt_data_string.strip():
         return "No articles available to summarize."
+
+    if summary_mode == "brief":
+        style_instructions = """Provide a SHORT, high-level executive briefing. 
+For each category, write 2-3 sentences max capturing only the most important developments. 
+Keep the entire summary under 300 words. No filler — just the key takeaways."""
+    else:
+        style_instructions = """Provide a DETAILED, comprehensive briefing. 
+For each category, cover all major stories with context, implications, and relevant details. 
+Use sub-bullets for individual stories. Be thorough but stay organized and readable."""
+
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview')
         prompt = f'''You are a professional news briefing assistant. 
 The following news articles were published between {date_context}.
 I am providing you with a list of current news articles. Each article includes its assigned Categories, Title, and Description.
-Please provide a well-structured, easy-to-read summary of the news, grouping the insights by Category. 
-Keep it engaging, objective, and concise. Use markdown formatting (headers, bullet points) for readability.
+
+{style_instructions}
+
+Group the insights by Category. Use markdown formatting (headers, bullet points) for readability.
 
 Here is the news data:
 {prompt_data_string}
@@ -706,6 +720,22 @@ else:
             if not processed_articles:
                 st.info("No articles available to summarize.")
             else:
+                # Summary length toggle
+                col_label, col_toggle = st.columns([3, 1])
+                with col_label:
+                    st.caption("Summary depth")
+                with col_toggle:
+                    is_detailed = st.toggle("Detailed", value=(st.session_state.summary_mode == "detailed"), key="summary_depth_toggle")
+
+                current_mode = "detailed" if is_detailed else "brief"
+
+                # If mode changed, invalidate the cached summary
+                if current_mode != st.session_state.summary_mode:
+                    st.session_state.summary_mode = current_mode
+                    st.session_state.ai_summary_signature = None
+                    st.session_state._ai_generating = False
+                    st.rerun()
+
                 prompt_lines = []
                 for a in processed_articles:
                     cat_string = ", ".join(a['computed_tags'][:2])
@@ -716,9 +746,9 @@ else:
 
                 prompt_data_string = "\n".join(prompt_lines)
 
-                current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}"
+                current_feed_signature = f"{st.session_state.applied_topics}_{st.session_state.applied_start_date}_{st.session_state.applied_end_date}_{st.session_state.applied_sources}_{st.session_state.summary_mode}"
 
-                # Summary already cached for this feed
+                # Summary already cached for this feed + mode
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     encoded_summary = urllib.parse.quote(st.session_state.ai_summary_text)
                     st.markdown(f'''
@@ -736,12 +766,14 @@ else:
                         st.session_state._ai_generating = True
                         st.rerun()
 
+                    mode_label = "quick briefing" if st.session_state.summary_mode == "brief" else "detailed analysis"
+
                     # Show loading state while generating
                     st.markdown('''
                     <div class="ai-briefing-container" style="text-align: center; padding: 3rem 2rem;">
                         <div style="font-size: 36px; margin-bottom: 16px; animation: pulse-hint 1.5s ease-in-out infinite;">✨</div>
                         <p style="font-family: Inter, sans-serif; font-size: 16px; font-weight: 500; color: #E5E7EB; margin-bottom: 8px;">
-                            Generating your briefing...
+                            Generating your {mode}...
                         </p>
                         <p style="font-family: Inter, sans-serif; color: #9CA3AF; font-size: 13px;">
                             Analyzing {count} articles across your topics
@@ -753,10 +785,10 @@ else:
                             <div class="skeleton-line" style="height: 12px; border-radius: 4px; margin: 0 auto; width: 60%;"></div>
                         </div>
                     </div>
-                    '''.format(count=len(processed_articles)), unsafe_allow_html=True)
+                    '''.format(count=len(processed_articles), mode=mode_label), unsafe_allow_html=True)
 
                     date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
-                    summary_markdown = get_gemini_summary(prompt_data_string, date_context)
+                    summary_markdown = get_gemini_summary(prompt_data_string, date_context, st.session_state.summary_mode)
                     st.session_state.ai_summary_text = summary_markdown
                     st.session_state.ai_summary_signature = current_feed_signature
                     st.session_state._ai_generating = False
