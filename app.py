@@ -483,25 +483,6 @@ if is_edit_mode and st.session_state.saved_custom_topics:
         st.session_state.active_topics = [t for t in st.session_state.active_topics if t in DEFAULT_TOPICS or t in remaining]
     st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
 
-# CONDITIONAL REFRESH BUTTON
-current_selected_topics = st.session_state.active_topics
-
-has_pending_changes = (
-    set(current_selected_topics) != set(st.session_state.applied_topics) or
-    current_start != st.session_state.applied_start_date or
-    current_end != st.session_state.applied_end_date or
-    set(current_sources) != set(st.session_state.applied_sources)
-)
-
-if has_pending_changes:
-    st.write("")
-    if st.button("🔄 Update Feed", type="primary", use_container_width=True):
-        st.session_state.applied_topics = current_selected_topics
-        st.session_state.applied_start_date = current_start
-        st.session_state.applied_end_date = current_end
-        st.session_state.applied_sources = current_sources
-        st.rerun()
-
 FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAnIGhlaWdodD0nMTIwJz48cmVjdCB3aWR0aD0nMTIwJyBoZWlnaHQ9JzEyMCcgZmlsbD0nIzFGMjkzNycvPjx0ZXh0IHg9JzUwJScgeT0nNTAlJyBmb250LXNpemU9JzQwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBkeT0nLjNlbSc+8J+TsDwvdGV4dD48L3N2Zz4="
 
 # --- MAIN APP BODY ---
