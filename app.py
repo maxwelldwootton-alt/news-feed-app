@@ -76,32 +76,6 @@ TOPIC_KEYWORDS = {
     ],
 }
 
-# --- TOPIC SUGGESTIONS (for autocomplete) ---
-TOPIC_SUGGESTIONS = sorted(set(
-    list(TOPIC_KEYWORDS.keys()) + [
-        "Nvidia", "Tesla", "Apple", "Google", "Microsoft", "Amazon", "Meta",
-        "Bitcoin", "Crypto", "Ethereum", "Blockchain",
-        "Climate", "Energy", "Oil", "Renewable", "Solar",
-        "Healthcare", "Pharma", "Biotech", "FDA",
-        "Space", "NASA", "SpaceX", "Mars",
-        "Venture Capital", "IPO", "Startups", "Funding",
-        "Cybersecurity", "Data Privacy", "Hacking",
-        "China", "Russia", "Ukraine", "NATO", "Middle East", "Iran",
-        "Federal Reserve", "Inflation", "Interest Rates", "Recession",
-        "Education", "Student Loans", "College",
-        "Real Estate", "Housing Market", "Mortgage",
-        "Sports", "NFL", "NBA", "Soccer",
-        "Entertainment", "Movies", "Streaming", "Netflix", "Disney",
-        "Robotics", "Automation", "Self Driving",
-        "5G", "Semiconductor", "Chip", "TSMC", "Intel",
-        "Regulation", "Antitrust", "SEC", "FTC",
-        "Social Media", "TikTok", "Twitter", "Instagram",
-        "Layoffs", "Jobs", "Unemployment", "Hiring",
-        "Trade", "Tariffs", "Supply Chain",
-        "OpenAI", "ChatGPT", "Anthropic", "DeepMind",
-    ]
-))
-
 # --- INITIALIZE SESSION STATE ---
 if 'saved_custom_topics' not in st.session_state:
     st.session_state.saved_custom_topics = []
@@ -569,32 +543,36 @@ with col_search:
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom topics")
 
-# --- Autocomplete suggestions ---
-current_input = st.session_state.get("search_input", "").strip()
-if current_input:
-    query_lower = current_input.lower()
-    # Get all existing topic names to exclude
-    existing_topics = set(t.lower() for t in DEFAULT_TOPICS + st.session_state.saved_custom_topics)
-    # Find matches from suggestion bank
-    matches = [
-        s for s in TOPIC_SUGGESTIONS
-        if query_lower in s.lower() and s.lower() not in existing_topics
-    ][:6]  # Cap at 6 suggestions
+# --- Browse Popular Topics ---
+SUGGESTED_CATEGORIES = {
+    "🏢 Companies": ["Nvidia", "Tesla", "Apple", "Google", "Microsoft", "Amazon", "Meta", "TSMC", "Intel", "Netflix", "Disney", "SpaceX"],
+    "💰 Finance": ["Bitcoin", "Crypto", "Ethereum", "Federal Reserve", "Inflation", "Interest Rates", "Recession", "IPO", "Venture Capital", "Real Estate", "Housing Market"],
+    "🌍 Geopolitics": ["China", "Russia", "Ukraine", "NATO", "Middle East", "Iran", "Trade", "Tariffs", "Supply Chain"],
+    "🔬 Science & Health": ["Climate", "Energy", "Solar", "Healthcare", "Pharma", "Biotech", "FDA", "Space", "NASA"],
+    "🤖 AI & Tech": ["OpenAI", "ChatGPT", "Anthropic", "DeepMind", "Cybersecurity", "Robotics", "Semiconductor", "5G", "Self Driving"],
+    "📱 Culture": ["Social Media", "TikTok", "Streaming", "Sports", "NFL", "NBA", "Layoffs", "Jobs", "Education"],
+}
 
-    if matches:
-        def pick_suggestion(topic_name):
-            new_topic = topic_name.title()
-            if new_topic not in st.session_state.saved_custom_topics and new_topic not in DEFAULT_TOPICS:
-                st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
-            current_active = st.session_state.get('active_topics', [])
-            if new_topic not in current_active:
-                st.session_state.active_topics = current_active + [new_topic]
-            st.session_state.search_input = ""
+def pick_suggestion(topic_name):
+    new_topic = topic_name.title()
+    if new_topic not in st.session_state.saved_custom_topics and new_topic not in DEFAULT_TOPICS:
+        st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
+    current_active = st.session_state.get('active_topics', [])
+    if new_topic not in current_active:
+        st.session_state.active_topics = current_active + [new_topic]
 
-        suggestion_cols = st.columns(len(matches))
-        for i, match in enumerate(matches):
-            with suggestion_cols[i]:
-                st.button(match, key=f"suggest_{match}", on_click=pick_suggestion, args=(match,), use_container_width=True)
+existing_topics = set(t.lower() for t in DEFAULT_TOPICS + st.session_state.saved_custom_topics)
+
+with st.expander("💡 Browse suggested topics"):
+    for cat_label, suggestions in SUGGESTED_CATEGORIES.items():
+        available = [s for s in suggestions if s.lower() not in existing_topics]
+        if not available:
+            continue
+        st.caption(cat_label)
+        cols = st.columns(min(len(available), 4))
+        for i, topic in enumerate(available):
+            with cols[i % min(len(available), 4)]:
+                st.button(topic, key=f"sug_{topic}", on_click=pick_suggestion, args=(topic,), use_container_width=True)
 
 # Unified Delete Mode for Custom Topics
 if is_edit_mode and st.session_state.saved_custom_topics:
