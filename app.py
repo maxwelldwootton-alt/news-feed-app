@@ -751,9 +751,9 @@ else:
                 # Summary already cached for this feed + mode
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     encoded_summary = urllib.parse.quote(st.session_state.ai_summary_text)
+                    st.markdown('<div class="ai-briefing-container">', unsafe_allow_html=True)
+                    st.markdown(st.session_state.ai_summary_text)
                     st.markdown(f'''
-                    <div class="ai-briefing-container">
-                        {st.session_state.ai_summary_text}
                         <hr style="border-color: #363636; margin: 1.5rem 0 1rem 0;">
                         <button id="copy-ai-btn" class="copy-btn" data-text="{encoded_summary}">📋 Copy to Clipboard</button>
                     </div>
