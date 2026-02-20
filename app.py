@@ -417,12 +417,8 @@ st.markdown('''
         transform: scale(1.1) !important;
     }
 
-    /* Floating filters hint when sidebar is collapsed */
-    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .sidebar-hint {
-        display: flex !important;
-    }
+    /* Floating filters tab on left edge */
     .sidebar-hint {
-        display: none !important;
         position: fixed;
         top: 50%;
         left: 0;
