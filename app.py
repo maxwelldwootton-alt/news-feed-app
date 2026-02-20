@@ -169,13 +169,15 @@ def get_gemini_summary(prompt_data_string, date_context, summary_mode="brief"):
         return "No articles available to summarize."
 
     if summary_mode == "brief":
-        style_instructions = """Provide a SHORT, high-level executive briefing. 
-For each category, write 2-3 sentences max capturing only the most important developments. 
-Keep the entire summary under 300 words. No filler — just the key takeaways."""
+        style_instructions = """Provide a concise executive briefing.
+For each category, use a ## header with the category name, then write 2-4 bullet points capturing the most important developments.
+Each bullet should be one clear, informative sentence. Bold key names, companies, and figures.
+Keep the entire summary focused and scannable. Use markdown formatting (## headers, bullet points, **bold**) for readability."""
     else:
         style_instructions = """Provide a DETAILED, comprehensive briefing. 
-For each category, cover all major stories with context, implications, and relevant details. 
-Use sub-bullets for individual stories. Be thorough but stay organized and readable."""
+For each category, use a ## header with the category name, then cover all major stories with context, implications, and relevant details. 
+Use bullet points for individual stories with **bold** lead-ins. Include sub-bullets where appropriate.
+Be thorough but stay organized and readable. Use markdown formatting (## headers, bullet points, **bold**) for readability."""
 
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview')
