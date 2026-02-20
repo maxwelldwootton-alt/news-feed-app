@@ -200,7 +200,7 @@ def add_custom_topic():
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
 st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
-st.markdown('<div class="sidebar-hint" onclick="window.parent.document.querySelector(\'button[data-testid=stBaseButton-headerNoPadding]\').click()">⚙️ Filters</div>', unsafe_allow_html=True)
+st.markdown('<div class="sidebar-hint" id="sidebar-hint-btn">⚙️ Filters</div>', unsafe_allow_html=True)
 
 # --- CSS STYLING ---
 st.markdown('''
@@ -404,17 +404,24 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
-    /* Make sidebar toggle button more visible */
+    /* Make sidebar toggle button much more visible */
     button[data-testid="stBaseButton-headerNoPadding"] {
         border: 2px solid #3B82F6 !important;
         border-radius: 8px !important;
-        padding: 8px !important;
-        background-color: rgba(59, 130, 246, 0.15) !important;
+        padding: 10px !important;
+        background-color: rgba(59, 130, 246, 0.2) !important;
         transition: all 0.2s ease !important;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.3) !important;
     }
     button[data-testid="stBaseButton-headerNoPadding"]:hover {
-        background-color: rgba(59, 130, 246, 0.3) !important;
+        background-color: rgba(59, 130, 246, 0.4) !important;
         transform: scale(1.1) !important;
+        box-shadow: 0 0 16px rgba(59, 130, 246, 0.5) !important;
+    }
+    button[data-testid="stBaseButton-headerNoPadding"] svg {
+        width: 24px !important;
+        height: 24px !important;
+        color: #60A5FA !important;
     }
 
     /* Floating filters tab on left edge */
@@ -773,6 +780,17 @@ components.html(
                         onError("Clipboard API not available");
                     }
                 }
+            });
+        }
+    }, 250);
+    // --- Sidebar hint click handler ---
+    const findHintBtn = setInterval(() => {
+        const hint = parentDoc.getElementById('sidebar-hint-btn');
+        if (hint && !hint.hasAttribute('data-hint-listener')) {
+            hint.setAttribute('data-hint-listener', 'true');
+            hint.addEventListener('click', function() {
+                const toggleBtn = parentDoc.querySelector('button[data-testid="stBaseButton-headerNoPadding"]');
+                if (toggleBtn) toggleBtn.click();
             });
         }
     }, 250);
