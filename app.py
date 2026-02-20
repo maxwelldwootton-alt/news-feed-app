@@ -2,6 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 import re
+import markdown
 from datetime import datetime, timedelta, date, timezone
 import google.generativeai as genai
 import concurrent.futures
@@ -369,6 +370,42 @@ st.markdown('''
         font-family: 'Inter', sans-serif;
         line-height: 1.8;
         margin-top: 1rem;
+    }
+    .ai-briefing-container h1 {
+        font-family: 'Merriweather', serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #F3F4F6;
+        margin: 0 0 0.75rem 0;
+        border-bottom: 1px solid #363636;
+        padding-bottom: 0.5rem;
+    }
+    .ai-briefing-container h2 {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #60A5FA;
+        margin: 1.5rem 0 0.5rem 0;
+    }
+    .ai-briefing-container h3 {
+        font-family: 'Inter', sans-serif;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #D1D5DB;
+        margin: 1rem 0 0.4rem 0;
+    }
+    .ai-briefing-container ul {
+        margin: 0.5rem 0;
+        padding-left: 1.25rem;
+    }
+    .ai-briefing-container li {
+        margin-bottom: 0.4rem;
+    }
+    .ai-briefing-container p {
+        margin: 0.5rem 0;
+    }
+    .ai-briefing-container strong {
+        color: #F3F4F6;
     }
 
     .copy-btn {
@@ -751,9 +788,10 @@ else:
                 # Summary already cached for this feed + mode
                 if st.session_state.get('ai_summary_signature') == current_feed_signature:
                     encoded_summary = urllib.parse.quote(st.session_state.ai_summary_text)
-                    st.markdown('<div class="ai-briefing-container">', unsafe_allow_html=True)
-                    st.markdown(st.session_state.ai_summary_text)
+                    summary_html = markdown.markdown(st.session_state.ai_summary_text, extensions=['extra'])
                     st.markdown(f'''
+                    <div class="ai-briefing-container">
+                        {summary_html}
                         <hr style="border-color: #363636; margin: 1.5rem 0 1rem 0;">
                         <button id="copy-ai-btn" class="copy-btn" data-text="{encoded_summary}">📋 Copy to Clipboard</button>
                     </div>
