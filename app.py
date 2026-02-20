@@ -403,6 +403,15 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
+    /* Sticky Update Feed button in sidebar */
+    [data-testid="stSidebar"] [data-testid="stButton"]:last-of-type {
+        position: sticky;
+        bottom: 0;
+        background-color: #0E1117;
+        padding: 12px 0;
+        z-index: 100;
+    }
+
     </style>
 ''', unsafe_allow_html=True)
 
