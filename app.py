@@ -230,13 +230,21 @@ def md_to_html(text):
 
         # Headers
         if stripped.startswith('#### '):
-            html_lines.append(f'<h4>{stripped[5:].strip()}</h4>')
+            content = stripped[5:].strip()
+            content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)
+            html_lines.append(f'<h4>{content}</h4>')
         elif stripped.startswith('### '):
-            html_lines.append(f'<h3>{stripped[4:].strip()}</h3>')
+            content = stripped[4:].strip()
+            content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)
+            html_lines.append(f'<h3>{content}</h3>')
         elif stripped.startswith('## '):
-            html_lines.append(f'<h2>{stripped[3:].strip()}</h2>')
+            content = stripped[3:].strip()
+            content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)
+            html_lines.append(f'<h2>{content}</h2>')
         elif stripped.startswith('# '):
-            html_lines.append(f'<h1>{stripped[2:].strip()}</h1>')
+            content = stripped[2:].strip()
+            content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)
+            html_lines.append(f'<h1>{content}</h1>')
         # Horizontal rule
         elif stripped in ('---', '***', '___'):
             html_lines.append('<hr>')
@@ -256,11 +264,16 @@ def md_to_html(text):
         # Regular paragraph
         else:
             content = stripped
-            content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
-            content = re.sub(r'__(.+?)__', r'<strong>\1</strong>', content)
-            content = re.sub(r'\*(.+?)\*', r'<em>\1</em>', content)
-            content = re.sub(r'_(.+?)_', r'<em>\1</em>', content)
-            html_lines.append(f'<p>{content}</p>')
+            # Standalone bold line = treat as heading
+            bold_match = re.match(r'^\*\*(.+?)\*\*$', content)
+            if bold_match:
+                html_lines.append(f'<h2>{bold_match.group(1)}</h2>')
+            else:
+                content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
+                content = re.sub(r'__(.+?)__', r'<strong>\1</strong>', content)
+                content = re.sub(r'\*(.+?)\*', r'<em>\1</em>', content)
+                content = re.sub(r'_(.+?)_', r'<em>\1</em>', content)
+                html_lines.append(f'<p>{content}</p>')
 
     if in_list:
         html_lines.append('</ul>')
