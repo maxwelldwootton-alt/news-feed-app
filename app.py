@@ -200,6 +200,7 @@ def add_custom_topic():
 st.set_page_config(page_title="The Wire", page_icon="📰", layout="centered")
 
 st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
+st.markdown('<div class="sidebar-hint" onclick="window.parent.document.querySelector(\'button[data-testid=stBaseButton-headerNoPadding]\').click()">⚙️ Filters</div>', unsafe_allow_html=True)
 
 # --- CSS STYLING ---
 st.markdown('''
@@ -404,17 +405,54 @@ st.markdown('''
         fill: currentColor;
     }
     /* Make sidebar toggle button more visible */
-button[data-testid="stBaseButton-headerNoPadding"] {
-    border: 2px solid #3B82F6 !important;
-    border-radius: 8px !important;
-    padding: 8px !important;
-    background-color: rgba(59, 130, 246, 0.15) !important;
-    transition: all 0.2s ease !important;
-}
-button[data-testid="stBaseButton-headerNoPadding"]:hover {
-    background-color: rgba(59, 130, 246, 0.3) !important;
-    transform: scale(1.1) !important;
-}
+    button[data-testid="stBaseButton-headerNoPadding"] {
+        border: 2px solid #3B82F6 !important;
+        border-radius: 8px !important;
+        padding: 8px !important;
+        background-color: rgba(59, 130, 246, 0.15) !important;
+        transition: all 0.2s ease !important;
+    }
+    button[data-testid="stBaseButton-headerNoPadding"]:hover {
+        background-color: rgba(59, 130, 246, 0.3) !important;
+        transform: scale(1.1) !important;
+    }
+
+    /* Floating filters hint when sidebar is collapsed */
+    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .sidebar-hint {
+        display: flex !important;
+    }
+    .sidebar-hint {
+        display: none !important;
+        position: fixed;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        background: linear-gradient(135deg, #3B82F6, #2563EB);
+        color: white;
+        padding: 16px 8px;
+        border-radius: 0 8px 8px 0;
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        cursor: pointer;
+        z-index: 99999;
+        box-shadow: 2px 0 12px rgba(59, 130, 246, 0.4);
+        transition: all 0.3s ease;
+        animation: pulse-hint 2s ease-in-out infinite;
+    }
+    .sidebar-hint:hover {
+        padding: 16px 12px;
+        box-shadow: 4px 0 20px rgba(59, 130, 246, 0.6);
+    }
+    @keyframes pulse-hint {
+        0%, 100% { box-shadow: 2px 0 12px rgba(59, 130, 246, 0.4); }
+        50% { box-shadow: 4px 0 20px rgba(59, 130, 246, 0.7); }
+    }
+
     </style>
 ''', unsafe_allow_html=True)
 
