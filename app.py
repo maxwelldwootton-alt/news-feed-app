@@ -410,6 +410,12 @@ st.markdown('''
 with st.sidebar:
     st.header("Advanced Filters")
 
+    # --- SELECTED TOPICS ---
+    all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
+    st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi")
+
+    st.divider()
+
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
     min_allowed_date = today - timedelta(days=29)
@@ -460,12 +466,6 @@ if is_edit_mode and st.session_state.saved_custom_topics:
         st.session_state.saved_custom_topics = remaining
         st.session_state.active_topics = [t for t in st.session_state.active_topics if t in DEFAULT_TOPICS or t in remaining]
     st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
-
-# UNIFIED TOPICS DISPLAY
-st.write("**Selected Topics**")
-
-all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
-st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
 
 # CONDITIONAL REFRESH BUTTON
 current_selected_topics = st.session_state.active_topics
