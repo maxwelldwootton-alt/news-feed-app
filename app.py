@@ -76,6 +76,32 @@ TOPIC_KEYWORDS = {
     ],
 }
 
+# --- TOPIC SUGGESTIONS (for autocomplete) ---
+TOPIC_SUGGESTIONS = sorted(set(
+    list(TOPIC_KEYWORDS.keys()) + [
+        "Nvidia", "Tesla", "Apple", "Google", "Microsoft", "Amazon", "Meta",
+        "Bitcoin", "Crypto", "Ethereum", "Blockchain",
+        "Climate", "Energy", "Oil", "Renewable", "Solar",
+        "Healthcare", "Pharma", "Biotech", "FDA",
+        "Space", "NASA", "SpaceX", "Mars",
+        "Venture Capital", "IPO", "Startups", "Funding",
+        "Cybersecurity", "Data Privacy", "Hacking",
+        "China", "Russia", "Ukraine", "NATO", "Middle East", "Iran",
+        "Federal Reserve", "Inflation", "Interest Rates", "Recession",
+        "Education", "Student Loans", "College",
+        "Real Estate", "Housing Market", "Mortgage",
+        "Sports", "NFL", "NBA", "Soccer",
+        "Entertainment", "Movies", "Streaming", "Netflix", "Disney",
+        "Robotics", "Automation", "Self Driving",
+        "5G", "Semiconductor", "Chip", "TSMC", "Intel",
+        "Regulation", "Antitrust", "SEC", "FTC",
+        "Social Media", "TikTok", "Twitter", "Instagram",
+        "Layoffs", "Jobs", "Unemployment", "Hiring",
+        "Trade", "Tariffs", "Supply Chain",
+        "OpenAI", "ChatGPT", "Anthropic", "DeepMind",
+    ]
+))
+
 # --- INITIALIZE SESSION STATE ---
 if 'saved_custom_topics' not in st.session_state:
     st.session_state.saved_custom_topics = []
@@ -344,6 +370,22 @@ st.markdown('''
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
 
+    /* Suggestion buttons */
+    [data-testid="stColumns"] button[kind="secondary"] {
+        font-size: 11px !important;
+        padding: 4px 8px !important;
+        min-height: 0 !important;
+        height: auto !important;
+        border: 1px solid #3B82F6 !important;
+        color: #60A5FA !important;
+        background-color: transparent !important;
+        border-radius: 20px !important;
+    }
+    [data-testid="stColumns"] button[kind="secondary"]:hover {
+        background-color: rgba(59, 130, 246, 0.15) !important;
+        color: white !important;
+    }
+
     .ai-briefing-container {
         background: #1E1E24;
         border: 1px solid #2E2F38;
@@ -526,6 +568,33 @@ with col_search:
     st.text_input("Add a custom topic:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital, Election...", label_visibility="collapsed")
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom topics")
+
+# --- Autocomplete suggestions ---
+current_input = st.session_state.get("search_input", "").strip()
+if current_input:
+    query_lower = current_input.lower()
+    # Get all existing topic names to exclude
+    existing_topics = set(t.lower() for t in DEFAULT_TOPICS + st.session_state.saved_custom_topics)
+    # Find matches from suggestion bank
+    matches = [
+        s for s in TOPIC_SUGGESTIONS
+        if query_lower in s.lower() and s.lower() not in existing_topics
+    ][:6]  # Cap at 6 suggestions
+
+    if matches:
+        def pick_suggestion(topic_name):
+            new_topic = topic_name.title()
+            if new_topic not in st.session_state.saved_custom_topics and new_topic not in DEFAULT_TOPICS:
+                st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
+            current_active = st.session_state.get('active_topics', [])
+            if new_topic not in current_active:
+                st.session_state.active_topics = current_active + [new_topic]
+            st.session_state.search_input = ""
+
+        suggestion_cols = st.columns(len(matches))
+        for i, match in enumerate(matches):
+            with suggestion_cols[i]:
+                st.button(match, key=f"suggest_{match}", on_click=pick_suggestion, args=(match,), use_container_width=True)
 
 # Unified Delete Mode for Custom Topics
 if is_edit_mode and st.session_state.saved_custom_topics:
