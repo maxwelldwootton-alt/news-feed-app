@@ -163,6 +163,28 @@ def classify_article(text, applied_topics):
     return list(dict.fromkeys(found_tags))
 
 
+OPINION_SIGNALS = [
+    r'\bopinion\b', r'\beditorial\b', r'\bop-ed\b', r'\boped\b',
+    r'\bcolumn\b', r'\bcolumnist\b', r'\bcommentary\b',
+    r'\bperspective\b', r'\banalysis\b', r'\bletter to the editor\b',
+    r'\breview[:\s]', r'\ba sharp take\b', r'\btake on\b',
+    r'\bwhy you should\b', r'\bwhy i\b', r'\bhere\'s why\b',
+    r'\bwhat .+ gets (right|wrong)\b', r'\bthe case (for|against)\b',
+    r'\bshould you\b', r'\bworth watching\b', r'\bworth reading\b',
+    r'\bfirst look\b', r'\bhands-on\b', r'\bhands on\b',
+    r'\bi think\b', r'\bin my view\b', r'\bin my opinion\b',
+    r'\brant\b', r'\bhot take\b', r'\bunpopular opinion\b',
+]
+
+def is_opinion_article(title, description):
+    """Check if an article is likely an opinion/editorial/review piece."""
+    text = f"{title} {description}".lower()
+    for pattern in OPINION_SIGNALS:
+        if re.search(pattern, text):
+            return True
+    return False
+
+
 @st.cache_data(show_spinner=False)
 def get_gemini_summary(prompt_data_string, date_context, summary_mode="brief"):
     if not prompt_data_string.strip():
@@ -628,6 +650,8 @@ with st.sidebar:
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
 
+    st.toggle("Hide opinion & editorial pieces", value=True, key="hide_opinions", help="Filters out reviews, op-eds, columns, and analysis pieces")
+
     # --- UPDATE FEED BUTTON ---
     current_selected_topics = st.session_state.active_topics
 
@@ -734,6 +758,10 @@ else:
 
             description = article.get('description') or ""
             text_to_analyze = f"{title} {description}"
+
+            # Skip opinion/editorial pieces if filter is on
+            if st.session_state.get('hide_opinions', True) and is_opinion_article(title, description):
+                continue
 
             article_tags = classify_article(text_to_analyze, st.session_state.applied_topics)
 
