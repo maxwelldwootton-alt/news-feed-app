@@ -414,8 +414,6 @@ with st.sidebar:
     all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
     st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi")
 
-    st.divider()
-
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
     min_allowed_date = today - timedelta(days=29)
@@ -443,6 +441,24 @@ with st.sidebar:
     display_names = list(SOURCE_MAPPING.values())
     selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
+
+    # --- UPDATE FEED BUTTON ---
+    current_selected_topics = st.session_state.active_topics
+
+    has_pending_changes = (
+        set(current_selected_topics) != set(st.session_state.applied_topics) or
+        current_start != st.session_state.applied_start_date or
+        current_end != st.session_state.applied_end_date or
+        set(current_sources) != set(st.session_state.applied_sources)
+    )
+
+    if has_pending_changes:
+        if st.button("🔄 Update Feed", type="primary", use_container_width=True):
+            st.session_state.applied_topics = current_selected_topics
+            st.session_state.applied_start_date = current_start
+            st.session_state.applied_end_date = current_end
+            st.session_state.applied_sources = current_sources
+            st.rerun()
 
 # --- MAIN UI MASTHEAD ---
 st.markdown('''
