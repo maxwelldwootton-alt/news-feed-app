@@ -731,40 +731,55 @@ else:
 
                 # Not yet generated — show skeleton preview + generate button
                 else:
-                    # Skeleton loading preview
-                    st.markdown('''
-                    <div class="ai-briefing-container" style="opacity: 0.5;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                            <span style="font-size: 24px;">✨</span>
-                            <span style="font-family: Inter, sans-serif; font-size: 18px; font-weight: 600; color: #9CA3AF;">
-                                Your AI briefing is ready to generate
-                            </span>
-                        </div>
-                        <div class="skeleton-line" style="height: 14px; background: #2E2F38; border-radius: 4px; margin-bottom: 12px; width: 85%;"></div>
-                        <div class="skeleton-line" style="height: 14px; background: #2E2F38; border-radius: 4px; margin-bottom: 12px; width: 92%;"></div>
-                        <div class="skeleton-line" style="height: 14px; background: #2E2F38; border-radius: 4px; margin-bottom: 12px; width: 78%;"></div>
-                        <div class="skeleton-line" style="height: 14px; background: #2E2F38; border-radius: 4px; margin-bottom: 20px; width: 65%;"></div>
-                        <div class="skeleton-line" style="height: 14px; background: #2E2F38; border-radius: 4px; margin-bottom: 12px; width: 90%;"></div>
-                        <div class="skeleton-line" style="height: 14px; background: #2E2F38; border-radius: 4px; margin-bottom: 12px; width: 70%;"></div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-
-                    st.write("")
-                    if st.button("✨ Generate AI Briefing", type="primary", use_container_width=True):
-                        # Replace skeleton with animated loading
-                        with st.spinner(""):
-                            st.markdown('''
-                            <div style="text-align: center; padding: 2rem 0;">
-                                <p style="font-family: Inter, sans-serif; color: #9CA3AF; font-size: 14px; margin-top: 12px;">
-                                    Analyzing {count} articles across your topics...
-                                </p>
+                    if st.session_state.get('_ai_generating', False):
+                        # Show loading state
+                        st.markdown('''
+                        <div class="ai-briefing-container" style="text-align: center; padding: 3rem 2rem;">
+                            <div style="font-size: 36px; margin-bottom: 16px; animation: pulse-hint 1.5s ease-in-out infinite;">✨</div>
+                            <p style="font-family: Inter, sans-serif; font-size: 16px; font-weight: 500; color: #E5E7EB; margin-bottom: 8px;">
+                                Generating your briefing...
+                            </p>
+                            <p style="font-family: Inter, sans-serif; color: #9CA3AF; font-size: 13px;">
+                                Analyzing {count} articles across your topics
+                            </p>
+                            <div style="margin-top: 20px;">
+                                <div class="skeleton-line" style="height: 12px; border-radius: 4px; margin: 0 auto 10px auto; width: 80%;"></div>
+                                <div class="skeleton-line" style="height: 12px; border-radius: 4px; margin: 0 auto 10px auto; width: 90%;"></div>
+                                <div class="skeleton-line" style="height: 12px; border-radius: 4px; margin: 0 auto 10px auto; width: 70%;"></div>
+                                <div class="skeleton-line" style="height: 12px; border-radius: 4px; margin: 0 auto; width: 60%;"></div>
                             </div>
-                            '''.format(count=min(len(processed_articles), 30)), unsafe_allow_html=True)
+                        </div>
+                        '''.format(count=min(len(processed_articles), 30)), unsafe_allow_html=True)
 
-                            date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
-                            summary_markdown = get_gemini_summary(prompt_data_string, date_context)
-                            st.session_state.ai_summary_text = summary_markdown
-                            st.session_state.ai_summary_signature = current_feed_signature
+                        date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
+                        summary_markdown = get_gemini_summary(prompt_data_string, date_context)
+                        st.session_state.ai_summary_text = summary_markdown
+                        st.session_state.ai_summary_signature = current_feed_signature
+                        st.session_state._ai_generating = False
+                        st.rerun()
+
+                    else:
+                        # Skeleton preview
+                        st.markdown('''
+                        <div class="ai-briefing-container" style="opacity: 0.5;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                                <span style="font-size: 24px;">✨</span>
+                                <span style="font-family: Inter, sans-serif; font-size: 18px; font-weight: 600; color: #9CA3AF;">
+                                    Your AI briefing is ready to generate
+                                </span>
+                            </div>
+                            <div class="skeleton-line" style="height: 14px; border-radius: 4px; margin-bottom: 12px; width: 85%;"></div>
+                            <div class="skeleton-line" style="height: 14px; border-radius: 4px; margin-bottom: 12px; width: 92%;"></div>
+                            <div class="skeleton-line" style="height: 14px; border-radius: 4px; margin-bottom: 12px; width: 78%;"></div>
+                            <div class="skeleton-line" style="height: 14px; border-radius: 4px; margin-bottom: 20px; width: 65%;"></div>
+                            <div class="skeleton-line" style="height: 14px; border-radius: 4px; margin-bottom: 12px; width: 90%;"></div>
+                            <div class="skeleton-line" style="height: 14px; border-radius: 4px; margin-bottom: 12px; width: 70%;"></div>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+                        st.write("")
+                        if st.button("✨ Generate AI Briefing", type="primary", use_container_width=True):
+                            st.session_state._ai_generating = True
                             st.rerun()
 
 # Back to top button
