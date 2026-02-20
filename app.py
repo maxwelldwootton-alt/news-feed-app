@@ -403,6 +403,18 @@ st.markdown('''
         height: 20px;
         fill: currentColor;
     }
+    /* Make sidebar toggle button more visible */
+button[data-testid="stBaseButton-headerNoPadding"] {
+    border: 2px solid #3B82F6 !important;
+    border-radius: 8px !important;
+    padding: 8px !important;
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    transition: all 0.2s ease !important;
+}
+button[data-testid="stBaseButton-headerNoPadding"]:hover {
+    background-color: rgba(59, 130, 246, 0.3) !important;
+    transform: scale(1.1) !important;
+}
     </style>
 ''', unsafe_allow_html=True)
 
