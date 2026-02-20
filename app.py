@@ -344,8 +344,25 @@ st.markdown('''
     .description-text { font-family: 'Inter', sans-serif; font-size: 15px; margin-top: 14px; color: #D1D5DB; line-height: 1.6; font-weight: 300; }
     .stButton button { width: 100%; border-radius: 5px; font-family: 'Inter', sans-serif; }
 
-    /* Suggestion buttons */
-    [data-testid="stColumns"] button[kind="secondary"] {
+    /* Suggestion popover trigger — looks like a subtle link */
+    [data-testid="stPopover"] > button {
+        background-color: transparent !important;
+        border: 1px dashed #3B82F6 !important;
+        color: #60A5FA !important;
+        font-size: 13px !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 6px 12px !important;
+        border-radius: 8px !important;
+        min-height: 0 !important;
+        transition: all 0.2s ease !important;
+    }
+    [data-testid="stPopover"] > button:hover {
+        background-color: rgba(59, 130, 246, 0.1) !important;
+        border-color: #60A5FA !important;
+    }
+
+    /* Suggestion buttons inside popover */
+    [data-testid="stPopover"] [data-testid="stColumns"] button[kind="secondary"] {
         font-size: 11px !important;
         padding: 4px 8px !important;
         min-height: 0 !important;
@@ -355,7 +372,7 @@ st.markdown('''
         background-color: transparent !important;
         border-radius: 20px !important;
     }
-    [data-testid="stColumns"] button[kind="secondary"]:hover {
+    [data-testid="stPopover"] [data-testid="stColumns"] button[kind="secondary"]:hover {
         background-color: rgba(59, 130, 246, 0.15) !important;
         color: white !important;
     }
@@ -539,11 +556,11 @@ st.markdown('''
 
 col_search, col_edit = st.columns([4, 1])
 with col_search:
-    st.text_input("Add a custom topic:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital, Election...", label_visibility="collapsed")
+    st.text_input("Add a custom topic:", key="search_input", on_change=add_custom_topic, placeholder="Type a topic or browse suggestions below ↓", label_visibility="collapsed")
 with col_edit:
     is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom topics")
 
-# --- Browse Popular Topics ---
+# --- Browse Popular Topics (visually attached to search bar) ---
 SUGGESTED_CATEGORIES = {
     "🏢 Companies": ["Nvidia", "Tesla", "Apple", "Google", "Microsoft", "Amazon", "Meta", "TSMC", "Intel", "Netflix", "Disney", "SpaceX"],
     "💰 Finance": ["Bitcoin", "Crypto", "Ethereum", "Federal Reserve", "Inflation", "Interest Rates", "Recession", "IPO", "Venture Capital", "Real Estate", "Housing Market"],
@@ -563,7 +580,7 @@ def pick_suggestion(topic_name):
 
 existing_topics = set(t.lower() for t in DEFAULT_TOPICS + st.session_state.saved_custom_topics)
 
-with st.expander("💡 Browse suggested topics"):
+with st.popover("💡 Browse suggested topics", use_container_width=True):
     for cat_label, suggestions in SUGGESTED_CATEGORIES.items():
         available = [s for s in suggestions if s.lower() not in existing_topics]
         if not available:
