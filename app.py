@@ -408,7 +408,30 @@ st.markdown('''
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("Advanced Filters")
+    st.header("Filters")
+
+    # --- TOPICS (at the top) ---
+    st.subheader("Topics")
+
+    st.text_input("Add a custom topic:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital...", label_visibility="collapsed")
+
+    is_edit_mode = st.toggle("Delete custom topics", key="edit_mode", help="Turn on to delete custom topics")
+
+    if is_edit_mode and st.session_state.saved_custom_topics:
+        st.warning("🗑️ Uncheck to permanently remove a custom topic.")
+        def on_delete_change():
+            remaining = st.session_state.temp_delete_widget
+            st.session_state.saved_custom_topics = remaining
+            st.session_state.active_topics = [t for t in st.session_state.active_topics if t in DEFAULT_TOPICS or t in remaining]
+        st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
+
+    all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
+    st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
+
+    st.divider()
+
+    # --- DATE RANGE ---
+    st.subheader("Date Range")
 
     current_utc = datetime.now(timezone.utc)
     today = (current_utc - timedelta(hours=5)).date()
@@ -424,7 +447,8 @@ with st.sidebar:
         value=(safe_start, safe_end),
         min_value=min_allowed_date,
         max_value=today,
-        format="MM/DD/YYYY"
+        format="MM/DD/YYYY",
+        label_visibility="collapsed"
     )
 
     if len(current_date_range) == 2:
@@ -434,9 +458,34 @@ with st.sidebar:
     else:
         current_start, current_end = safe_start, safe_end
 
+    st.divider()
+
+    # --- SOURCES ---
+    st.subheader("Sources")
+
     display_names = list(SOURCE_MAPPING.values())
-    selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi")
+    selected_display_names = st.pills("Toggle sources:", options=display_names, default=[SOURCE_MAPPING[src] for src in st.session_state.applied_sources if src in SOURCE_MAPPING], selection_mode="multi", label_visibility="collapsed")
     current_sources = [REVERSE_MAPPING[name] for name in selected_display_names] if selected_display_names else []
+
+    st.divider()
+
+    # --- UPDATE BUTTON IN SIDEBAR ---
+    current_selected_topics = st.session_state.active_topics
+
+    has_pending_changes = (
+        set(current_selected_topics) != set(st.session_state.applied_topics) or
+        current_start != st.session_state.applied_start_date or
+        current_end != st.session_state.applied_end_date or
+        set(current_sources) != set(st.session_state.applied_sources)
+    )
+
+    if has_pending_changes:
+        if st.button("🔄 Update Feed", type="primary", use_container_width=True):
+            st.session_state.applied_topics = current_selected_topics
+            st.session_state.applied_start_date = current_start
+            st.session_state.applied_end_date = current_end
+            st.session_state.applied_sources = current_sources
+            st.rerun()
 
 # --- MAIN UI MASTHEAD ---
 st.markdown('''
@@ -446,53 +495,13 @@ st.markdown('''
 </div>
 ''', unsafe_allow_html=True)
 
-col_search, col_edit = st.columns([4, 1])
-with col_search:
-    st.text_input("Add a custom topic:", key="search_input", on_change=add_custom_topic, placeholder="e.g. Nvidia, Venture Capital, Election...", label_visibility="collapsed")
-with col_edit:
-    is_edit_mode = st.toggle("Delete", key="edit_mode", help="Turn on to delete custom topics")
-
-# Unified Delete Mode for Custom Topics
-if is_edit_mode and st.session_state.saved_custom_topics:
-    st.warning("🗑️ **Delete Mode Active:** Uncheck to permanently remove a custom topic.")
-    def on_delete_change():
-        remaining = st.session_state.temp_delete_widget
-        st.session_state.saved_custom_topics = remaining
-        st.session_state.active_topics = [t for t in st.session_state.active_topics if t in DEFAULT_TOPICS or t in remaining]
-    st.pills("Delete", options=st.session_state.saved_custom_topics, default=st.session_state.saved_custom_topics, key="temp_delete_widget", on_change=on_delete_change, selection_mode="multi", label_visibility="collapsed")
-
-# UNIFIED TOPICS DISPLAY
-st.write("**Selected Topics**")
-
-all_combined_options = DEFAULT_TOPICS + st.session_state.saved_custom_topics
-st.pills("Selected Topics", options=all_combined_options, key="active_topics", selection_mode="multi", label_visibility="collapsed")
-
-# CONDITIONAL REFRESH BUTTON
-current_selected_topics = st.session_state.active_topics
-
-has_pending_changes = (
-    set(current_selected_topics) != set(st.session_state.applied_topics) or
-    current_start != st.session_state.applied_start_date or
-    current_end != st.session_state.applied_end_date or
-    set(current_sources) != set(st.session_state.applied_sources)
-)
-
-if has_pending_changes:
-    st.write("")
-    if st.button("🔄 Update Feed", type="primary", use_container_width=True):
-        st.session_state.applied_topics = current_selected_topics
-        st.session_state.applied_start_date = current_start
-        st.session_state.applied_end_date = current_end
-        st.session_state.applied_sources = current_sources
-        st.rerun()
-
 FALLBACK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAnIGhlaWdodD0nMTIwJz48cmVjdCB3aWR0aD0nMTIwJyBoZWlnaHQ9JzEyMCcgZmlsbD0nIzFGMjkzNycvPjx0ZXh0IHg9JzUwJScgeT0nNTAlJyBmb250LXNpemU9JzQwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBkeT0nLjNlbSc+8J+TsDwvdGV4dD48L3N2Zz4="
 
 # --- MAIN APP BODY ---
 if not NEWS_API_KEYS:
     st.warning("⚠️ Please enter at least one valid NewsAPI key.")
 elif not st.session_state.applied_topics:
-    st.info("👈 Please select at least one topic above and click 'Update Feed' to view articles.")
+    st.info("👈 Please select at least one topic in the sidebar and click 'Update Feed' to view articles.")
 else:
     if not st.session_state.applied_sources:
         st.warning("⚠️ Please select at least one source in the sidebar.")
@@ -547,7 +556,6 @@ else:
                     for tag in a['computed_tags']:
                         topic_counts[tag] = topic_counts.get(tag, 0) + 1
 
-                # Build filter options: "Topic (count)" — only topics with articles
                 filter_options = [
                     f"{t} ({topic_counts[t]})"
                     for t in st.session_state.applied_topics
@@ -567,7 +575,6 @@ else:
                     key="feed_topic_filter",
                 )
 
-                # Apply the filter
                 if selected_filter:
                     active_filter_topic = filter_label_to_topic.get(selected_filter)
                     filtered_articles = [a for a in processed_articles if active_filter_topic in a['computed_tags']]
