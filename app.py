@@ -80,7 +80,6 @@ TOPIC_KEYWORDS = {
 if 'saved_custom_topics' not in st.session_state:
     st.session_state.saved_custom_topics = []
 
-# Unified state for all active topics
 if 'active_topics' not in st.session_state:
     st.session_state.active_topics = DEFAULT_TOPICS.copy()
 
@@ -188,11 +187,9 @@ def add_custom_topic():
     if raw_query:
         new_topic = raw_query.title()
 
-        # Add to saved customs if it's completely new
         if new_topic not in st.session_state.saved_custom_topics and new_topic not in DEFAULT_TOPICS:
             st.session_state.saved_custom_topics = [new_topic] + st.session_state.saved_custom_topics
 
-        # Automatically select it in the unified active_topics list
         current_active = st.session_state.get('active_topics', [])
         if new_topic not in current_active:
             st.session_state.active_topics = current_active + [new_topic]
@@ -544,42 +541,75 @@ else:
                 else:
                     st.info("No articles found matching these topics on the selected dates.")
             else:
-                st.caption(f"Showing **{len(processed_articles)}** articles")
+                # --- In-feed topic filter with article counts ---
+                topic_counts = {}
+                for a in processed_articles:
+                    for tag in a['computed_tags']:
+                        topic_counts[tag] = topic_counts.get(tag, 0) + 1
 
-            for article in processed_articles:
-                title = article.get('title') or ""
-                url = article.get('url') or "#"
-                image_url = article.get('urlToImage')
-                description = article.get('description') or ""
+                # Build filter options: "Topic (count)" — only topics with articles
+                filter_options = [
+                    f"{t} ({topic_counts[t]})"
+                    for t in st.session_state.applied_topics
+                    if topic_counts.get(t, 0) > 0
+                ]
+                filter_label_to_topic = {
+                    f"{t} ({topic_counts[t]})": t
+                    for t in st.session_state.applied_topics
+                    if topic_counts.get(t, 0) > 0
+                }
 
-                tags_html = ""
-                article_tags = article['computed_tags']
-                visible_tags = article_tags[:2]
-                hidden_tags = article_tags[2:]
-                overflow_count = len(hidden_tags)
+                selected_filter = st.pills(
+                    "Filter by topic",
+                    options=filter_options,
+                    default=None,
+                    selection_mode="single",
+                    key="feed_topic_filter",
+                )
 
-                for tag in visible_tags:
-                    tags_html += f'<span class="chip chip-category">{tag}</span>'
-
-                if overflow_count > 0:
-                    tooltip_text = ", ".join(hidden_tags)
-                    tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
-
-                iso_date = article.get('publishedAt', '')[:10]
-                published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
-
-                api_source_name = article.get('source', {}).get('name', 'Unknown')
-                api_source_id = article.get('source', {}).get('id', '')
-                display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
-
-                source_chip = f'<span class="chip chip-source">{display_source}</span>'
-
-                if image_url:
-                    img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.onerror=null; this.src=\'{FALLBACK_IMG}\';"></div>'
+                # Apply the filter
+                if selected_filter:
+                    active_filter_topic = filter_label_to_topic.get(selected_filter)
+                    filtered_articles = [a for a in processed_articles if active_filter_topic in a['computed_tags']]
                 else:
-                    img_html = f'<div class="img-column"><img src="{FALLBACK_IMG}" alt="Placeholder"></div>'
+                    filtered_articles = processed_articles
 
-                st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
+                st.caption(f"Showing **{len(filtered_articles)}** of {len(processed_articles)} articles")
+
+                for article in filtered_articles:
+                    title = article.get('title') or ""
+                    url = article.get('url') or "#"
+                    image_url = article.get('urlToImage')
+                    description = article.get('description') or ""
+
+                    tags_html = ""
+                    article_tags = article['computed_tags']
+                    visible_tags = article_tags[:2]
+                    hidden_tags = article_tags[2:]
+                    overflow_count = len(hidden_tags)
+
+                    for tag in visible_tags:
+                        tags_html += f'<span class="chip chip-category">{tag}</span>'
+
+                    if overflow_count > 0:
+                        tooltip_text = ", ".join(hidden_tags)
+                        tags_html += f'<span class="chip chip-overflow">+{overflow_count}<span class="tooltip-text">{tooltip_text}</span></span>'
+
+                    iso_date = article.get('publishedAt', '')[:10]
+                    published_formatted = datetime.strptime(iso_date, '%Y-%m-%d').strftime('%b %d') if iso_date else "Unknown Date"
+
+                    api_source_name = article.get('source', {}).get('name', 'Unknown')
+                    api_source_id = article.get('source', {}).get('id', '')
+                    display_source = SOURCE_MAPPING.get(api_source_id, api_source_name)
+
+                    source_chip = f'<span class="chip chip-source">{display_source}</span>'
+
+                    if image_url:
+                        img_html = f'<div class="img-column"><img src="{image_url}" alt="Thumbnail" onerror="this.onerror=null; this.src=\'{FALLBACK_IMG}\';"></div>'
+                    else:
+                        img_html = f'<div class="img-column"><img src="{FALLBACK_IMG}" alt="Placeholder"></div>'
+
+                    st.markdown(f'''<div class="card-container"><div class="card-content"><div class="text-column"><a href="{url}" target="_blank" class="headline">{title}</a><div class="metadata">{source_chip}{tags_html}<span style="color: #6B7280; font-weight: bold;">•</span><span>{published_formatted}</span></div><p class="description-text">{description}</p></div>{img_html}</div></div>''', unsafe_allow_html=True)
 
         # --- TAB 2: AI OVERVIEW ---
         with tab_ai:
