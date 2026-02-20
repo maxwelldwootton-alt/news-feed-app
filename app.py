@@ -707,7 +707,7 @@ else:
                 st.info("No articles available to summarize.")
             else:
                 prompt_lines = []
-                for a in processed_articles[:30]:
+                for a in processed_articles:
                     cat_string = ", ".join(a['computed_tags'][:2])
                     title = a.get('title') or "No Title"
                     desc = a.get('description') or "No Description"
@@ -753,7 +753,7 @@ else:
                             <div class="skeleton-line" style="height: 12px; border-radius: 4px; margin: 0 auto; width: 60%;"></div>
                         </div>
                     </div>
-                    '''.format(count=min(len(processed_articles), 30)), unsafe_allow_html=True)
+                    '''.format(count=len(processed_articles)), unsafe_allow_html=True)
 
                     date_context = f"{st.session_state.applied_start_date.strftime('%B %d')} and {st.session_state.applied_end_date.strftime('%B %d')}"
                     summary_markdown = get_gemini_summary(prompt_data_string, date_context)
