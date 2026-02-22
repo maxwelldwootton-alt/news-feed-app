@@ -472,6 +472,7 @@ st.markdown('''
         margin: 0 0 0.75rem 0;
         border-bottom: 1px solid #363636;
         padding-bottom: 0.5rem;
+        position: static !important;
     }
     .ai-briefing-container h2 {
         font-family: 'Inter', sans-serif;
@@ -479,6 +480,7 @@ st.markdown('''
         font-weight: 600;
         color: #60A5FA;
         margin: 1.5rem 0 0.5rem 0;
+        position: static !important;
     }
     .ai-briefing-container h3 {
         font-family: 'Inter', sans-serif;
@@ -486,6 +488,7 @@ st.markdown('''
         font-weight: 600;
         color: #D1D5DB;
         margin: 1rem 0 0.4rem 0;
+        position: static !important;
     }
     .ai-briefing-container ul {
         margin: 0.5rem 0;
